@@ -139,6 +139,60 @@
     <span class="message-panel__text" id="message-text">Simulador carregado. Este ambiente é exclusivamente educacional e não deve ser utilizado para qualquer finalidade clínica ou diagnóstica.</span>
   </footer>
 
+  <!-- Capturador de erros de diagnóstico (Etapa 1 - temporário).
+       Roda como script clássico (não-módulo), portanto executa mesmo que
+       os módulos ES falhem ao carregar. Mostra o erro exato no painel de
+       mensagens para facilitar o diagnóstico em dispositivos sem DevTools. -->
+  <script>
+    (function () {
+      function reportError(text) {
+        var el = document.getElementById("message-text");
+        var loading = document.getElementById("viewport-loading");
+        if (el) {
+          el.textContent = "ERRO DE DIAGNÓSTICO: " + text;
+          el.style.color = "#ff6b6b";
+        }
+        if (loading) {
+          var span = loading.querySelector("span:last-child");
+          if (span) span.textContent = "Erro: " + text;
+        }
+      }
+      window.addEventListener("error", function (event) {
+        var msg = event.message || (event.error && event.error.message) || "erro desconhecido (possível falha ao carregar módulo)";
+        var src = event.filename ? " (" + event.filename + ":" + event.lineno + ")" : "";
+        reportError(msg + src);
+      });
+      window.addEventListener("unhandledrejection", function (event) {
+        var reason = event.reason && event.reason.message ? event.reason.message : String(event.reason);
+        reportError("promise rejeitada: " + reason);
+      });
+
+      // Diagnóstico ativo: se em 5s a cena não sinalizar sucesso
+      // (window.__ctSimulator definido pelo script.js), testamos cada
+      // arquivo crítico individualmente para apontar exatamente qual falhou.
+      var criticalFiles = [
+        "script.js",
+        "js/theme.js",
+        "js/messages.js",
+        "js/scene.js",
+        "js/vendor/three/three.module.min.js",
+        "js/vendor/three/examples/jsm/controls/OrbitControls.js",
+      ];
+      setTimeout(function () {
+        if (window.__ctSimulator) return; // já inicializou com sucesso
+        Promise.all(
+          criticalFiles.map(function (path) {
+            return fetch(path, { cache: "no-store" })
+              .then(function (res) { return path + " → HTTP " + res.status; })
+              .catch(function (err) { return path + " → falha de rede (" + err.message + ")"; });
+          })
+        ).then(function (results) {
+          reportError("cena não inicializou. Verificação de arquivos: " + results.join(" | "));
+        });
+      }, 5000);
+    })();
+  </script>
+
   <!-- Import map: resolve o specifier "three" para o build vendorizado localmente.
        Isso mantém o simulador 100% funcional offline (PWA), sem depender de CDN. -->
   <script type="importmap">
