@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Simulador Educacional de Tomografia Computadorizada</title>
+  <meta name="description" content="Simulador educacional de TC para treinamento de estudantes de Radiologia. Não realiza diagnóstico nem orientação clínica." />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a0e14" />
+  <link rel="icon" href="icons/icon-192.png" />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body data-theme="dark">
+
+  <!-- ===================== BARRA DE STATUS SUPERIOR ===================== -->
+  <header id="status-bar" class="status-bar" role="banner">
+    <div class="status-bar__brand">
+      <span class="status-bar__logo" aria-hidden="true">⌬</span>
+      <span class="status-bar__title">SIMULADOR TC</span>
+      <span class="status-bar__subtitle">Uso educacional — não clínico</span>
+    </div>
+
+    <div class="status-bar__indicators" id="status-indicators">
+      <div class="indicator" data-indicator="power" data-state="on" title="Sistema ligado">
+        <span class="indicator__dot"></span><span class="indicator__label">SISTEMA</span>
+      </div>
+      <div class="indicator" data-indicator="ready" data-state="on" title="Pronto para simulação">
+        <span class="indicator__dot"></span><span class="indicator__label">PRONTO</span>
+      </div>
+      <div class="indicator" data-indicator="laser" data-state="off" title="Lasers de posicionamento">
+        <span class="indicator__dot"></span><span class="indicator__label">LASER</span>
+      </div>
+      <div class="indicator" data-indicator="motion" data-state="off" title="Mesa em movimento">
+        <span class="indicator__dot"></span><span class="indicator__label">MOVIMENTO</span>
+      </div>
+    </div>
+
+    <div class="status-bar__actions">
+      <button id="theme-toggle" class="icon-btn" type="button" aria-label="Alternar tema claro/escuro" title="Alternar tema">
+        <svg viewBox="0 0 24 24" class="icon-btn__icon" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36A5.5 5.5 0 0 1 12 3z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===================== ÁREA PRINCIPAL ===================== -->
+  <main class="app-main">
+
+    <!-- Viewport 3D -->
+    <section class="viewport" aria-label="Visualização 3D do equipamento">
+      <canvas id="scene-canvas" aria-hidden="true"></canvas>
+
+      <div class="viewport__overlay">
+        <div class="viewport__hud" id="hud-position">
+          <span class="hud__label">POSIÇÃO DA MESA</span>
+          <span class="hud__value" id="hud-table-position">000.0 <small>mm</small></span>
+        </div>
+        <div class="viewport__hud" id="hud-speed">
+          <span class="hud__label">VELOCIDADE</span>
+          <span class="hud__value" id="hud-table-speed">0.0 <small>mm/s</small></span>
+        </div>
+      </div>
+
+      <div class="viewport__loading" id="viewport-loading">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>Inicializando cena 3D…</span>
+      </div>
+    </section>
+
+    <!-- Painel de operação -->
+    <aside class="console" aria-label="Painel de operação do equipamento">
+
+      <div class="console__display" aria-label="Display digital">
+        <div class="display">
+          <div class="display__row">
+            <span class="display__label">STATUS</span>
+            <span class="display__value" id="display-status">AGUARDANDO</span>
+          </div>
+          <div class="display__row">
+            <span class="display__label">MESA</span>
+            <span class="display__value display__value--mono" id="display-table">000.0 mm</span>
+          </div>
+          <div class="display__row">
+            <span class="display__label">DECÚBITO</span>
+            <span class="display__value" id="display-position">DORSAL</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="console__group" aria-label="Controles de mesa">
+        <h2 class="console__group-title">Mesa de Exame</h2>
+        <div class="btn-grid">
+          <button class="btn" id="btn-table-up" type="button" data-action="table-up">
+            <span class="btn__icon">▲</span><span>Mesa +</span>
+          </button>
+          <button class="btn" id="btn-table-down" type="button" data-action="table-down">
+            <span class="btn__icon">▼</span><span>Mesa −</span>
+          </button>
+          <button class="btn" id="btn-table-in" type="button" data-action="table-in">
+            <span class="btn__icon">⇥</span><span>Entrar</span>
+          </button>
+          <button class="btn" id="btn-table-out" type="button" data-action="table-out">
+            <span class="btn__icon">⇤</span><span>Sair</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="console__group" aria-label="Laser de posicionamento">
+        <h2 class="console__group-title">Laser</h2>
+        <div class="btn-grid">
+          <button class="btn btn--toggle" id="btn-laser" type="button" data-action="laser-toggle" aria-pressed="false">
+            <span class="btn__icon">✛</span><span>Laser</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="console__group console__group--danger" aria-label="Controles de emergência e simulação">
+        <h2 class="console__group-title">Simulação</h2>
+        <div class="btn-grid">
+          <button class="btn btn--primary" id="btn-start" type="button" data-action="start">
+            <span class="btn__icon">▶</span><span>Iniciar</span>
+          </button>
+          <button class="btn btn--warning" id="btn-reset" type="button" data-action="reset">
+            <span class="btn__icon">↺</span><span>Reiniciar</span>
+          </button>
+          <button class="btn btn--stop" id="btn-stop" type="button" data-action="stop">
+            <span class="btn__icon">■</span><span>STOP</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ===================== PAINEL DE MENSAGENS ===================== -->
+  <footer class="message-panel" aria-label="Painel de mensagens" role="status" aria-live="polite">
+    <span class="message-panel__icon" aria-hidden="true">ℹ</span>
+    <span class="message-panel__text" id="message-text">Simulador carregado. Este ambiente é exclusivamente educacional e não deve ser utilizado para qualquer finalidade clínica ou diagnóstica.</span>
+  </footer>
+
+  <!-- Import map: resolve o specifier "three" para o build vendorizado localmente.
+       Isso mantém o simulador 100% funcional offline (PWA), sem depender de CDN. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./js/vendor/three/three.module.min.js"
+    }
+  }
+  </script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
