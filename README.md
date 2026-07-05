@@ -57,3 +57,5 @@ icons/                → ícones do PWA
 8. **PWA completo** — service worker, cache offline, atualização
    controlada.
 9. **Testes e otimização** finais.
+
+<!-- deploy trigger 20260705T201213Z -->
