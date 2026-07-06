@@ -536,9 +536,9 @@
       baseGroup.position.set(0, 0, 0.9);
       scene.add(baseGroup);
 
-      var baseMatDark = new THREE.MeshStandardMaterial({ color: 0x8b929b, roughness: 0.5, metalness: 0.25 });
-      var baseMatLight = new THREE.MeshStandardMaterial({ color: 0xd9dee3, roughness: 0.4, metalness: 0.2 });
-      var columnMat = new THREE.MeshStandardMaterial({ color: 0xeef1f4, roughness: 0.35, metalness: 0.25 });
+      var baseMatDark = new THREE.MeshStandardMaterial({ color: 0xbfc7cd, roughness: 0.5, metalness: 0.15 });
+      var baseMatLight = new THREE.MeshStandardMaterial({ color: 0xf0f3f5, roughness: 0.38, metalness: 0.1 });
+      var columnMat = new THREE.MeshStandardMaterial({ color: 0xf4f7f9, roughness: 0.35, metalness: 0.12 });
 
       // --- Base fixa: três degraus retangulares (largo → estreito) ---
       // Altura total da parte fixa mantida abaixo da altura mínima da mesa
@@ -579,7 +579,7 @@
       // avanço do tampo, sem alterar a geometria da mesa/paciente/laser.
       var carriage = new THREE.Mesh(
         new THREE.BoxGeometry(0.5, 0.12, 1.0),
-        new THREE.MeshStandardMaterial({ color: 0xc4cad1, roughness: 0.4, metalness: 0.3 })
+        new THREE.MeshStandardMaterial({ color: 0xe4e9ec, roughness: 0.4, metalness: 0.15 })
       );
       carriage.castShadow = true; carriage.receiveShadow = true;
       baseGroup.add(carriage);
@@ -589,7 +589,7 @@
 
       var topPlate = new THREE.Mesh(
         new THREE.BoxGeometry(0.62, 0.04, 1.95),
-        new THREE.MeshStandardMaterial({ color: 0xe9edf0, roughness: 0.3, metalness: 0.5 })
+        new THREE.MeshStandardMaterial({ color: 0xf2f5f7, roughness: 0.35, metalness: 0.2 })
       );
       topPlate.castShadow = true;
       topPlate.receiveShadow = true;
@@ -597,7 +597,7 @@
 
       var cushion = new THREE.Mesh(
         new THREE.BoxGeometry(0.56, 0.025, 1.85),
-        new THREE.MeshStandardMaterial({ color: 0x2f3b46, roughness: 0.85 })
+        new THREE.MeshStandardMaterial({ color: 0xdfe5e8, roughness: 0.75 })
       );
       // Assentado sobre o topo do tampo (tampo: centro em 0, espessura
       // 0.04 → topo em +0.02). Colchão de 2.5 cm apoiado nesse topo.
@@ -619,7 +619,7 @@
       // mesa até o tampo ficar em ~66 cm (comportamento realista).
       var patient = new THREE.Group();
       var skin = new THREE.MeshStandardMaterial({ color: 0xe3b993, roughness: 0.7 });
-      var scrub = new THREE.MeshStandardMaterial({ color: 0x4f7d8c, roughness: 0.85 });
+      var scrub = new THREE.MeshStandardMaterial({ color: 0xaebfd4, roughness: 0.85 });
 
       var TORSO_R = 0.12; // raio do torso — espessura ~24 cm
 
