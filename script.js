@@ -403,7 +403,7 @@
       patient.add(limb(0.05, 0.32, 0.16, 0.12, 0.18, scrub));
       patient.add(limb(0.04, 0.42, -0.13, 0.12, 0.55, skin));
       patient.add(limb(0.04, 0.42, 0.13, 0.12, 0.55, skin));
-      patient.position.set(0, 0.09, -0.05);
+      patient.position.set(0, 0.09, -0.3);
       tableGroup.add(patient);
 
       function applyTablePose() {
@@ -416,15 +416,20 @@
       applyTablePose();
 
       // -----------------------------------------------------------
-      // Laser de posicionamento — duas linhas grossas e nítidas
-      // (longitudinal/sagital + transversal/coronal), sem efeito de luz
-      // difusa. Usamos blending aditivo só para dar um leve "brilho" de
-      // linha de laser, sem parecer uma lâmpada acesa.
+      // Laser de posicionamento — FIXO no gantry (não acompanha a mesa).
+      // Assim como no equipamento real, o paciente é que se desloca
+      // através da cruz de laser, que marca o plano de corte atual.
+      //   • Transversal: liga 3h a 9h (linha horizontal)
+      //   • Longitudinal: liga 12h a 6h (linha vertical)
+      // Ambas ficam no plano de entrada do gantry (fixo em X/Y/Z).
       // -----------------------------------------------------------
       var laserGroup = new THREE.Group();
+      var GANTRY_FACE_Z = -0.6 + GDEPTH / 2 + 0.005;
+      laserGroup.position.set(0, ISO_Y, GANTRY_FACE_Z);
       scene.add(laserGroup);
 
-      var LASER_THICKNESS = 0.012; // 12 mm — linha grossa e bem visível
+      var LASER_THICKNESS = 0.014; // 14 mm — linha grossa e bem visível
+      var LASER_SPAN = BORE_R * 1.9; // cobre quase todo o diâmetro do bore
       var laserMat = new THREE.MeshBasicMaterial({
         color: 0xff2222,
         transparent: true,
@@ -435,22 +440,15 @@
         side: THREE.DoubleSide,
       });
 
-      // Linha longitudinal (sagital) — acompanha o eixo Z, ao longo do
-      // corpo do paciente. Comprida o suficiente para cobrir toda a
-      // mesa em qualquer posição (fora ou dentro do gantry).
-      var sagittalLine = new THREE.Mesh(new THREE.PlaneGeometry(LASER_THICKNESS, 3.2), laserMat);
-      sagittalLine.rotation.x = -Math.PI / 2;
-      sagittalLine.renderOrder = 999;
-      laserGroup.add(sagittalLine);
+      // Transversal (3h ↔ 9h): linha horizontal, parada no eixo X.
+      var transversalLine = new THREE.Mesh(new THREE.PlaneGeometry(LASER_SPAN, LASER_THICKNESS), laserMat);
+      transversalLine.renderOrder = 999;
+      laserGroup.add(transversalLine);
 
-      // Linha transversal (coronal) — marca o ponto de entrada no gantry.
-      var coronalLine = new THREE.Mesh(new THREE.PlaneGeometry(GW * 0.9, LASER_THICKNESS), laserMat);
-      coronalLine.rotation.x = -Math.PI / 2;
-      coronalLine.position.set(0, 0, -0.6 + GDEPTH / 2); // Z fixo: plano de entrada do gantry
-      coronalLine.renderOrder = 999;
-      laserGroup.add(coronalLine);
-
-      var PATIENT_SURFACE_OFFSET = 0.24; // altura aproximada do topo do paciente acima do tampo da mesa
+      // Longitudinal (12h ↔ 6h): linha vertical, parada no eixo Y.
+      var longitudinalLine = new THREE.Mesh(new THREE.PlaneGeometry(LASER_THICKNESS, LASER_SPAN), laserMat);
+      longitudinalLine.renderOrder = 999;
+      laserGroup.add(longitudinalLine);
 
       laserGroup.visible = false;
 
@@ -620,11 +618,6 @@
           tableZ = nextZ;
           applyTablePose();
         }
-
-        // O laser acompanha a altura e a posição atual da mesa, para
-        // sempre aparecer sobre o paciente (não embutido dentro da mesa).
-        laserGroup.position.y = tableY + PATIENT_SURFACE_OFFSET;
-        sagittalLine.position.z = tableZ;
 
         var anyMoveFlag = moveUp || moveDown || moveIn || moveOut;
         setIndicator("motion", anyMoveFlag && moved);
