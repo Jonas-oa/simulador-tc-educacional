@@ -538,16 +538,21 @@
         if (patient.parent !== patientPose) {
           patientPose.add(patient);
           patient.rotation.set(0, 0, 0);
-          patient.position.set(0, 0.02, 0);
         }
-        // Roll pelo decúbito; yaw pela entrada (pés primeiro = 180°).
+        // O corpo é montado com o centro do torso a ~TORSO_R acima do plano
+        // do tampo. Para que a rotação de decúbito (roll/yaw) gire o corpo
+        // em torno do seu PRÓPRIO eixo central — e não em torno do plano do
+        // tampo (o que jogaria o corpo para baixo no ventral ou para o lado
+        // nas laterais) — colocamos o eixo de rotação (patientPose) na
+        // altura do centro do corpo e baixamos o corpo dentro dele pela
+        // mesma quantia.
+        var bodyCenter = TORSO_R;      // altura do eixo do corpo acima do tampo
+        patientPose.position.y = 0.02 + bodyCenter; // eixo na altura do centro
+        patient.position.set(0, -bodyCenter, 0);    // corpo desce até apoiar
+
         var roll = DECUBITO_ROLL[currentDecubito] || 0;
         var yaw = (currentEntrada === "pes") ? Math.PI : 0;
         patientPose.rotation.set(0, yaw, roll);
-        // Em decúbito lateral o corpo é mais "alto" (ombro a ombro); eleva
-        // levemente para apoiar no tampo em vez de afundar.
-        var isLateral = (currentDecubito === "lateral-d" || currentDecubito === "lateral-e");
-        patientPose.position.y = isLateral ? TORSO_R : 0;
 
         if (displayPositionEl) {
           displayPositionEl.textContent = decubitoLabel(currentDecubito) + " / " + entradaLabel(currentEntrada);
