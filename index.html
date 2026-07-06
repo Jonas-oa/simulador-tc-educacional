@@ -146,6 +146,7 @@
   <script>
     (function () {
       function reportError(text) {
+        window.__ctSimulatorErrorReported = true;
         var el = document.getElementById("message-text");
         var loading = document.getElementById("viewport-loading");
         if (el) {
@@ -179,7 +180,7 @@
         "js/vendor/three/examples/jsm/controls/OrbitControls.js",
       ];
       setTimeout(function () {
-        if (window.__ctSimulator) return; // já inicializou com sucesso
+        if (window.__ctSimulator || window.__ctSimulatorErrorReported) return; // já inicializou ou já reportou erro real
         Promise.all(
           criticalFiles.map(function (path) {
             return fetch(path, { cache: "no-store" })
@@ -187,7 +188,7 @@
               .catch(function (err) { return path + " → falha de rede (" + err.message + ")"; });
           })
         ).then(function (results) {
-          reportError("cena não inicializou. Verificação de arquivos: " + results.join(" | "));
+          reportError("cena não inicializou (sem exceção JS capturada). Verificação de arquivos: " + results.join(" | "));
         });
       }, 5000);
     })();

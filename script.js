@@ -28,6 +28,19 @@ function bootstrap() {
   }
 
   try {
+    // Verificação explícita de suporte a WebGL — evita uma exceção genérica
+    // do Three.js e dá um diagnóstico direto se o dispositivo/navegador
+    // não suportar (ou tiver desabilitado) aceleração de hardware.
+    const testGl =
+      canvas.getContext("webgl2") ||
+      canvas.getContext("webgl") ||
+      canvas.getContext("experimental-webgl");
+    if (!testGl) {
+      throw new Error(
+        "WebGL não disponível neste navegador/dispositivo (verifique se a aceleração de hardware está ativada)."
+      );
+    }
+
     // A cena é inicializada e exposta em window.__ctSimulator para que
     // as próximas etapas (mesa, laser, física, paciente) possam acessar
     // seus objetos (gantryGroup, tabletopMesh etc.) sem recriar a cena.
@@ -48,8 +61,9 @@ function bootstrap() {
     );
   } catch (error) {
     console.error("Falha ao inicializar a cena 3D:", error);
+    window.__ctSimulatorErrorReported = true;
     showMessage(
-      "Não foi possível inicializar a visualização 3D. Verifique se o navegador suporta WebGL.",
+      "Não foi possível inicializar a visualização 3D: " + (error && error.message ? error.message : String(error)),
       "error"
     );
   }
