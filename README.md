@@ -7,21 +7,45 @@ de paciente**. Não interpreta exames e não oferece orientação clínica.
 
 ```
 index.html          → estrutura da interface (viewport 3D, console, status bar, mensagens)
-script.js            → ponto de entrada; orquestra os módulos
+app.entry.js         → CÓDIGO-FONTE do ponto de entrada (usa import/export, ES modules)
+script.js            → BUNDLE gerado a partir de app.entry.js + js/*.js (NÃO editar direto)
 manifest.json         → metadados do PWA (ícones, cores, modo standalone)
 css/
   style.css           → tokens de design, tema claro/escuro, layout, componentes
 js/
-  scene.js            → cena 3D (Three.js): câmera, luzes, gantry e mesa
-  theme.js            → alternância de tema claro/escuro
-  messages.js          → utilitário do painel de mensagens
-  vendor/three/        → Three.js e OrbitControls vendorizados (funciona 100% offline)
+  scene.js            → (fonte) cena 3D: câmera, luzes, gantry e mesa
+  theme.js            → (fonte) alternância de tema claro/escuro
+  messages.js          → (fonte) utilitário do painel de mensagens
+  vendor/three/        → Three.js e OrbitControls vendorizados (usados só no build)
 assets/               → (reservado) recursos gerais
 models/               → (reservado) modelos 3D (paciente, peças do equipamento)
 textures/             → (reservado) texturas
 sounds/               → (reservado) efeitos sonoros dos botões/movimentos
 icons/                → ícones do PWA
 ```
+
+### ⚠️ Sobre o `script.js` (bundle)
+
+Depois de vários testes, descobrimos que módulos ES nativos
+(`<script type="module">` + import maps) não funcionavam de forma
+confiável no seu dispositivo/rede (falha silenciosa, sem erro
+capturável). Para resolver isso definitivamente, o projeto passou a usar
+um **bundle único**: todo o código-fonte modular (`app.entry.js` +
+`js/theme.js` + `js/scene.js` + `js/messages.js` + Three.js vendorizado)
+é compilado com **esbuild** num único arquivo `script.js` clássico
+(sem `type="module"`), que funciona em qualquer navegador.
+
+Isso significa que, a partir de agora, **sempre que eu (ou você) editar
+algo em `app.entry.js` ou em `js/*.js`, é preciso gerar o bundle de
+novo** antes de publicar:
+
+```bash
+npx esbuild app.entry.js --bundle --outfile=script.js --format=iife --target=es2018 --minify
+```
+
+Eu (Claude) já faço isso automaticamente antes de cada push nas próximas
+etapas — só estou documentando aqui para você entender por que existem
+dois arquivos parecidos (`app.entry.js` fonte, `script.js` gerado).
 
 ## Etapa 1 — concluída
 

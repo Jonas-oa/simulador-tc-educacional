@@ -171,14 +171,7 @@
       // Diagnóstico ativo: se em 5s a cena não sinalizar sucesso
       // (window.__ctSimulator definido pelo script.js), testamos cada
       // arquivo crítico individualmente para apontar exatamente qual falhou.
-      var criticalFiles = [
-        "script.js",
-        "js/theme.js",
-        "js/messages.js",
-        "js/scene.js",
-        "js/vendor/three/three.module.min.js",
-        "js/vendor/three/examples/jsm/controls/OrbitControls.js",
-      ];
+      var criticalFiles = ["script.js"];
       setTimeout(function () {
         if (window.__ctSimulator || window.__ctSimulatorErrorReported) return; // já inicializou ou já reportou erro real
         Promise.all(
@@ -194,6 +187,6 @@
     })();
   </script>
 
-  <script type="module" src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
