@@ -1,78 +1,123 @@
 # Simulador Educacional de Tomografia Computadorizada (TC)
 
-Simulador web para **treinamento de operação de equipamento e posicionamento
-de paciente**. Não interpreta exames e não oferece orientação clínica.
+Simulador web 3D para **treinamento de operação de equipamento e
+posicionamento de paciente**, destinado a estudantes de Radiologia.
+**Não interpreta exames nem oferece qualquer orientação clínica ou
+diagnóstica** — o foco é exclusivamente o aprendizado da operação do
+equipamento.
+
+- **Repositório:** github.com/Jonas-oa/simulador-tc-educacional (branch `main`)
+- **Site (GitHub Pages):** https://jonas-oa.github.io/simulador-tc-educacional/
 
 ## Estrutura do projeto
 
 ```
-index.html          → estrutura da interface (viewport 3D, console, status bar, mensagens)
-script.js            → TODO o código JS do simulador (script clássico, sem módulos/bundler)
-manifest.json         → metadados do PWA (ícones, cores, modo standalone)
-css/
-  style.css           → tokens de design, tema claro/escuro, layout, componentes
-js/
-  vendor/three.min.js  → Three.js r128 (build global/UMD), 100% offline
-assets/               → (reservado) recursos gerais
-models/               → (reservado) modelos 3D (paciente, peças do equipamento)
-textures/             → (reservado) texturas
-sounds/               → (reservado) efeitos sonoros dos botões/movimentos
+index.html            → interface (viewport 3D, console, status bar, mensagens)
+script.js             → TODO o código JS (script clássico, sem módulos/bundler)
+manifest.json         → metadados do PWA
+css/style.css         → tokens de design, tema claro/escuro, layout, componentes
+js/vendor/three.min.js → Three.js r128 (build global/UMD), 100% offline
 icons/                → ícones do PWA
+assets/ models/ textures/ sounds/ → (reservados para etapas futuras)
 ```
 
-### Arquitetura: por que script clássico (sem módulos)?
+## Arquitetura (decidida após depuração extensa — não mudar sem motivo forte)
 
-Testamos com ES modules + import maps e com um bundle único (esbuild) —
-ambos falharam de forma silenciosa em alguns navegadores/redes reais.
-A solução mais robusta foi eliminar toda dependência de recursos
-"modernos" de carregamento de JS: `script.js` é um único arquivo
-JavaScript clássico, carregado depois do Three.js vendorizado
-(`js/vendor/three.min.js`, versão r128 com build global `THREE`).
-Isso funciona em praticamente qualquer navegador/dispositivo, sem passo
-de build — você pode editar `script.js` direto e recarregar a página.
+- **SEM ES modules, SEM import maps, SEM bundler.** Só scripts clássicos.
+  ES modules falhavam silenciosamente em navegadores/redes reais do
+  usuário, sem erro capturável. `script.js` é um único arquivo clássico,
+  carregado depois do Three.js vendorizado (`js/vendor/three.min.js`,
+  r128, build global `THREE`). Edita e recarrega — sem passo de build.
+- **Câmera orbital manual** (arrastar p/ girar, pinça/scroll p/ zoom) —
+  não usa o addon OrbitControls (mesma razão).
+- **Deploy:** GitHub Pages via Actions. Falhas "Deployment failed, try
+  again later" são transitórias do GitHub — basta reter (commit vazio +
+  push). Cada sessão nova precisa de um token fine-grained do GitHub
+  (escopo só neste repo, Contents: Read/write) para publicar.
+- **Cache:** como é site estático, mudanças podem não aparecer por cache
+  do navegador. Testar em aba anônima ou limpar cache. (O controle de
+  versão automático virá com o service worker, na etapa PWA.)
 
-## Etapa 1+2 — concluídas (com adiantamentos)
+## Física / parâmetros do equipamento (confirmados com fotos de Siemens real)
 
-Depois de testar em dispositivo real e ajustar a arquitetura, aproveitamos
-para já adiantar boa parte da Etapa 2 (movimento da mesa) e da física
-(Etapa 6), usando como base um protótipo 3D mais completo:
+- Altura do isocentro: **80 cm** do piso.
+- Bore (furo do gantry): **80 cm de diâmetro** (raio 40 cm), passante.
+- Altura da mesa: **máxima 88 cm** (dentro e fora do gantry);
+  **mínima 50 cm fora** do gantry; **mínima 64 cm dentro** do gantry.
+- Entrada no gantry só é permitida com a altura na faixa 64–88 cm
+  (intertravamento de segurança, com aviso no painel).
+- Curso longitudinal total: **~200 cm**. O limite de inserção leva a
+  região anatômica de interesse (abdome/tórax/cabeça) ao isocentro.
+- Espessura média do paciente considerada: **24 cm** (meia-espessura
+  12 cm) — usada para o alinhamento do centro do corpo ao isocentro.
 
-- Estrutura completa de pastas.
-- Interface completa: barra de status com indicadores dinâmicos (sistema,
-  pronto, laser, movimento), viewport 3D, console de operação com botões
-  **funcionais**, display digital, painel de mensagens.
-- Tema claro/escuro funcional.
-- Cena 3D completa: sala (piso, paredes, teto), gantry com furo real
-  (via `ExtrudeGeometry`), mesa com base telescópica, paciente
-  simplificado, iluminação com sombras, câmera orbital manual
-  (arrastar para girar, scroll/pinça para zoom).
-- **Mesa de exame funcional**: botões Mesa +/−, Entrar/Sair com
-  pressionar-e-segurar (mouse e touch), limites físicos reais (altura
-  50–100 cm, curso longitudinal de 2 m).
-- **Intertravamento de segurança**: não permite mudar a altura da mesa
-  enquanto ela estiver dentro do gantry; não permite entrar no gantry se
-  a altura não estiver na faixa seguindo o isocentro — com aviso claro
-  no painel de mensagens.
-- **Laser de posicionamento funcional**: liga/desliga, com linhas
-  sagital e coronal com efeito de brilho aditivo.
-- **Iniciar/Reiniciar/STOP funcionais**: Iniciar marca o status como "em
-  andamento"; Reiniciar volta a mesa à posição inicial; STOP interrompe
-  qualquer movimento imediatamente (parada de emergência).
-- HUD com posição (mm) e velocidade (mm/s) atualizados em tempo real.
+## Estado atual — implementado
 
-## Próximas etapas (aguardando confirmação)
+**Cena 3D**
+- Sala (piso xadrez, paredes, teto), iluminação com sombras.
+- Gantry com furo real (ExtrudeGeometry), anel de acento ciano.
+- Suporte da mesa estilo Somatom: base retangular escalonada FIXA no
+  piso + coluna-pistão que sobe/desce com a mesa; berço de suporte que
+  preenche o vão entre a base e o gantry quando o tampo avança.
+- Colchão fino (2.5 cm) sobre o tampo.
 
-1. **Painel de controle — detalhes finos** — sons opcionais de clique,
-   feedback visual mais rico nos botões.
-2. **Laser transversal completo** — já existe sagital/coronal; falta o
-   terceiro plano e alinhamento visual fino.
-3. **Decúbitos do paciente** — seleção entre dorsal, ventral, lateral D/E.
-4. **Física refinada** — aceleração/desaceleração suave (hoje a mesa se
-   move em velocidade constante ao segurar o botão).
-5. **Configurações + IndexedDB** — idioma, tema, velocidade de animação,
-   volume, preferências (persistentes entre sessões).
-6. **PWA completo** — service worker, cache offline, atualização
-   controlada, instalação.
-7. **Testes e otimização** finais.
+**Mesa de exame**
+- Botões Mesa +/− (altura) e Entrar/Sair (longitudinal), com
+  pressionar-e-segurar via Pointer Events (mouse + touch, com captura
+  de ponteiro para não "grudar").
+- Limites de altura contextuais (dentro/fora do gantry) e intertravamento
+  de entrada.
+- HUD e display digital: posição (mm), velocidade (mm/s), altura (cm).
 
-<!-- deploy trigger 20260705T201213Z -->
+**Laser de posicionamento** (projetado por raycasting — segue a
+superfície do paciente, não atravessa o corpo)
+- 3 feixes longitudinais (origens 12h / 3h / 9h): linha média sagital no
+  topo + laterais sagitais.
+- 1 feixe transversal (origem 12h): marca o plano de início do exame.
+- Cobertura: ~20 cm para fora + ~50 cm para dentro do gantry.
+- **Temporizador de segurança:** desliga sozinho após 40 s.
+
+**Botão Zerar**
+- Define a posição atual da mesa como marco zero para a (futura)
+  aquisição. Ponto de controle, não obrigatório. A leitura de posição
+  passa a ser relativa a esse ponto.
+
+**Posicionamento do paciente** (layout vertical — o horizontal fica p/
+etapa futura)
+- Paciente inicia **em pé ao lado do aparelho** (estado "aguardando").
+- Ao selecionar um decúbito, ele vai para a mesa na posição escolhida.
+- 4 decúbitos (dorsal, ventral, lateral D, lateral E) × 2 entradas
+  (cabeça primeiro, pés primeiro) = 8 combinações, com rotação 3D real
+  em torno do eixo central do corpo (não afunda na mesa).
+- Seletor: botão que abre painel expansível com ícones SVG esquemáticos.
+
+**Simulação**
+- Iniciar (status vira guia de alinhamento no isocentro:
+  SUBIR/DESCER MESA / ISOCENTRO OK), Reiniciar (volta tudo ao início,
+  paciente de volta em pé), STOP (parada de emergência).
+
+**Interface geral**
+- Tema claro/escuro. Layout mobile (vertical) otimizado; barra de
+  status com indicadores dinâmicos; painel de mensagens.
+
+## Próximas etapas (pendentes)
+
+- **Aquisição do exame** (usa o marco zero do laser transversal) — a
+  grande próxima etapa.
+- Layout **horizontal** (paisagem): card fixo no canto estilo Siemens.
+- Ícones SVG do seletor mais refinados; calibração fina das poses.
+- Refinamento visual do gantry (mirar na foto-meta: branco, curvo,
+  painéis laterais).
+- Física refinada (aceleração/desaceleração suave).
+- Configurações + IndexedDB (idioma, tema, velocidade, volume).
+- PWA completo (service worker, cache offline, atualização controlada,
+  instalação).
+- Testes e otimização finais.
+
+## Estilo de trabalho (seguir sempre)
+
+Estudar o arquivo antes de editar; explicar o plano antes de gerar código
+quando a mudança for grande; edições cirúrgicas preservando nomes de
+função/IDs/variáveis/keys; nunca reescrever sem necessidade; validar
+(`node --check`, conferir IDs no HTML) antes de publicar; confirmar no
+final que nada foi quebrado; dividir em etapas e aguardar confirmação.
