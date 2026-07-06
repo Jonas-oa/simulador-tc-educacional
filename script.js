@@ -701,14 +701,31 @@
       setHeld(btnIn, function (v) { moveIn = v; });
       setHeld(btnOut, function (v) { moveOut = v; });
 
+      // Temporizador de segurança do laser: desliga sozinho após 40 s
+      // (como no equipamento real, para evitar exposição desnecessária
+      // dos olhos ao feixe).
+      var LASER_TIMEOUT_MS = 40000;
+      var laserTimer = null;
+
+      function setLaser(on) {
+        laserOn = on;
+        laserGroup.visible = on;
+        if (btnLaser) btnLaser.setAttribute("aria-pressed", String(on));
+        setIndicator("laser", on);
+        if (laserTimer) { clearTimeout(laserTimer); laserTimer = null; }
+        if (on) {
+          updateLasers();
+          laserTimer = setTimeout(function () {
+            setLaser(false);
+            showMessage("Laser desligado automaticamente após 40 segundos (desligamento de segurança).", "info");
+          }, LASER_TIMEOUT_MS);
+        }
+      }
+
       if (btnLaser) {
         btnLaser.addEventListener("click", function () {
-          laserOn = !laserOn;
-          laserGroup.visible = laserOn;
-          btnLaser.setAttribute("aria-pressed", String(laserOn));
-          setIndicator("laser", laserOn);
-          if (laserOn) updateLasers();
-          showMessage(laserOn ? "Laser de posicionamento ligado." : "Laser de posicionamento desligado.", "info");
+          setLaser(!laserOn);
+          showMessage(laserOn ? "Laser de posicionamento ligado (desliga sozinho em 40 s)." : "Laser de posicionamento desligado.", "info");
         });
       }
 
@@ -735,10 +752,7 @@
           tableZ = TABLE_Z_MAX;
           tableZeroRef = null;
           applyTablePose();
-          laserOn = false;
-          laserGroup.visible = false;
-          if (btnLaser) btnLaser.setAttribute("aria-pressed", "false");
-          setIndicator("laser", false);
+          setLaser(false);
           simulationRunning = false;
           var statusEl = document.getElementById("display-status");
           if (statusEl) statusEl.textContent = "AGUARDANDO";
