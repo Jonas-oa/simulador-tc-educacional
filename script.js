@@ -319,18 +319,20 @@
       //   • Altura máxima da mesa: 100 cm
       //   • Altura mínima da mesa: 50 cm
       //   • Curso longitudinal total: ~200 cm
-      //   • Entrada máxima no gantry (além da face do bore): ~170 cm
       //
-      // Geometria do gantry (para referência do limite de inserção):
-      //   face frontal do bore em Z ≈ -0.175 ; face traseira em Z ≈ -1.025.
-      //   O tampo tem 1.95 m de comprimento, centrado em tableZ; sua ponta
-      //   frontal fica em (tableZ - 0.975). Para a ponta parar ~5 cm antes
-      //   da face traseira do gantry (-1.025), tableZ mínimo ≈ -0.10.
+      // O furo do gantry (bore) é PASSANTE — um túnel aberto dos dois
+      // lados. O tampo atravessa o furo livremente; o limite de inserção
+      // é definido para que a região anatômica de interesse alcance o
+      // isocentro (centro do gantry, Z ≈ -0.60), não por colisão com
+      // parede traseira (que não existe).
+      //   - Isocentro em Z ≈ -0.60 ; face frontal do bore em Z ≈ -0.175.
+      //   - Paciente: abdome ~z+0.15, tórax ~z+0.36, cabeça ~z+0.75.
+      //   - tableZ = -0.96 leva o tórax ao isocentro; -1.35 leva a cabeça.
       // -----------------------------------------------------------
       var TABLE_Y_MIN = 0.50, TABLE_Y_MAX = 1.00;   // altura (m) — 50 a 100 cm
-      var TABLE_Z_MAX = 1.10;                        // totalmente retraída (fora do gantry)
-      var TABLE_Z_MIN = 0.03;                        // inserção máxima — ponta da mesa para ~8cm antes da parede traseira do túnel
-      var BORE_SAFE_Z = 0.80;                        // ponto (m) em que a ponta da mesa cruza a face do gantry
+      var TABLE_Z_MAX = 0.90;                        // totalmente retraída (paciente fora, à frente do gantry)
+      var TABLE_Z_MIN = -1.10;                       // inserção máxima — permite tórax/abdome/cabeça no isocentro
+      var BORE_SAFE_Z = 0.20;                        // ponto (m) em que a ponta da mesa cruza a face do gantry
       // Faixa de altura segura para permanecer/entrar no bore. O furo do
       // gantry (raio 40 cm / diâmetro 80 cm, em torno do isocentro de
       // 80 cm) comporta com folga toda a faixa mecânica da mesa, então a
@@ -385,7 +387,7 @@
         new THREE.BoxGeometry(0.56, 0.07, 1.85),
         new THREE.MeshStandardMaterial({ color: 0x2f3b46, roughness: 0.85 })
       );
-      cushion.position.y = 0.055;
+      cushion.position.set(0, 0.055, 0);
       cushion.castShadow = true;
       cushion.receiveShadow = true;
       tableGroup.add(cushion);
