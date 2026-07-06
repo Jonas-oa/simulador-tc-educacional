@@ -423,10 +423,12 @@
       tableGroup.add(topPlate);
 
       var cushion = new THREE.Mesh(
-        new THREE.BoxGeometry(0.56, 0.07, 1.85),
+        new THREE.BoxGeometry(0.56, 0.025, 1.85),
         new THREE.MeshStandardMaterial({ color: 0x2f3b46, roughness: 0.85 })
       );
-      cushion.position.set(0, 0.055, 0);
+      // Assentado sobre o topo do tampo (tampo: centro em 0, espessura
+      // 0.04 → topo em +0.02). Colchão de 2.5 cm apoiado nesse topo.
+      cushion.position.set(0, 0.02 + 0.0125, 0);
       cushion.castShadow = true;
       cushion.receiveShadow = true;
       tableGroup.add(cushion);
