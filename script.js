@@ -153,13 +153,50 @@
       canvas.addEventListener("mousedown", function (e) { pointerDown(e.clientX, e.clientY); });
       window.addEventListener("mousemove", function (e) { pointerMove(e.clientX, e.clientY); });
       window.addEventListener("mouseup", pointerUp);
+
+      // Toque com 1 dedo = girar; toque com 2 dedos = zoom por pinça.
+      // "touch-action: none" no CSS garante que o navegador não capture
+      // esses gestos para zoom/pan da página inteira.
+      var pinchStartDist = null, pinchStartRadius = radius;
+
+      function touchDistance(touches) {
+        var dx = touches[0].clientX - touches[1].clientX;
+        var dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
       canvas.addEventListener("touchstart", function (e) {
-        if (e.touches.length === 1) pointerDown(e.touches[0].clientX, e.touches[0].clientY);
-      }, { passive: true });
+        e.preventDefault();
+        if (e.touches.length === 1) {
+          pointerDown(e.touches[0].clientX, e.touches[0].clientY);
+        } else if (e.touches.length === 2) {
+          dragging = false;
+          pinchStartDist = touchDistance(e.touches);
+          pinchStartRadius = radius;
+        }
+      }, { passive: false });
+
       canvas.addEventListener("touchmove", function (e) {
-        if (e.touches.length === 1) pointerMove(e.touches[0].clientX, e.touches[0].clientY);
-      }, { passive: true });
-      canvas.addEventListener("touchend", pointerUp);
+        e.preventDefault();
+        if (e.touches.length === 1) {
+          pointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        } else if (e.touches.length === 2 && pinchStartDist) {
+          var newDist = touchDistance(e.touches);
+          var scale = pinchStartDist / newDist; // dedos afastando = diminui radius (aproxima)
+          radius = Math.min(MAX_RADIUS, Math.max(MIN_RADIUS, pinchStartRadius * scale));
+          updateCamera();
+        }
+      }, { passive: false });
+
+      canvas.addEventListener("touchend", function (e) {
+        pointerUp();
+        if (e.touches.length < 2) pinchStartDist = null;
+      });
+      canvas.addEventListener("touchcancel", function () {
+        pointerUp();
+        pinchStartDist = null;
+      });
+
       canvas.addEventListener("wheel", function (e) {
         e.preventDefault();
         radius = Math.min(MAX_RADIUS, Math.max(MIN_RADIUS, radius + e.deltaY * 0.0035));
@@ -398,17 +435,19 @@
       });
 
       // Linha longitudinal (sagital) — acompanha o eixo Z, ao longo do
-      // corpo do paciente.
-      var sagittalLine = new THREE.Mesh(new THREE.PlaneGeometry(LASER_THICKNESS, 2.4), laserMat);
+      // corpo do paciente. Comprida o suficiente para cobrir toda a
+      // mesa em qualquer posição (fora ou dentro do gantry).
+      var sagittalLine = new THREE.Mesh(new THREE.PlaneGeometry(LASER_THICKNESS, 3.2), laserMat);
       sagittalLine.rotation.x = -Math.PI / 2;
-      sagittalLine.position.set(0, ISO_Y + 0.001, 0.2);
       laserGroup.add(sagittalLine);
 
       // Linha transversal (coronal) — marca o ponto de entrada no gantry.
       var coronalLine = new THREE.Mesh(new THREE.PlaneGeometry(GW * 0.9, LASER_THICKNESS), laserMat);
       coronalLine.rotation.x = -Math.PI / 2;
-      coronalLine.position.set(0, ISO_Y + 0.001, -0.6 + GDEPTH / 2);
+      coronalLine.position.set(0, 0, -0.6 + GDEPTH / 2); // Z fixo: plano de entrada do gantry
       laserGroup.add(coronalLine);
+
+      var PATIENT_SURFACE_OFFSET = 0.24; // altura aproximada do topo do paciente acima do tampo da mesa
 
       laserGroup.visible = false;
 
@@ -424,13 +463,25 @@
 
       function setHeld(el, setter) {
         if (!el) return;
-        var on = function () { setter(true); };
-        var off = function () { setter(false); };
-        el.addEventListener("mousedown", on);
-        el.addEventListener("touchstart", function (e) { e.preventDefault(); on(); }, { passive: false });
-        ["mouseup", "mouseleave", "touchend", "touchcancel"].forEach(function (ev) {
-          el.addEventListener(ev, off);
-        });
+        function on(e) {
+          e.preventDefault();
+          setter(true);
+          // Captura o ponteiro: garante que o "soltar" seja detectado
+          // mesmo que o dedo deslize para fora do botão durante o toque
+          // (evita a mesa "grudar" em um movimento contínuo).
+          if (el.setPointerCapture && e.pointerId !== undefined) {
+            try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignora */ }
+          }
+        }
+        function off() { setter(false); }
+        el.addEventListener("pointerdown", on);
+        el.addEventListener("pointerup", off);
+        el.addEventListener("pointercancel", off);
+        el.addEventListener("pointerleave", off);
+        // Rede de segurança adicional: se por algum motivo o ponteiro for
+        // solto fora do elemento sem capturar corretamente.
+        window.addEventListener("pointerup", off);
+        window.addEventListener("blur", off);
       }
 
       var btnUp = document.getElementById("btn-table-up");
@@ -559,6 +610,11 @@
           tableZ = nextZ;
           applyTablePose();
         }
+
+        // O laser acompanha a altura e a posição atual da mesa, para
+        // sempre aparecer sobre o paciente (não embutido dentro da mesa).
+        laserGroup.position.y = tableY + PATIENT_SURFACE_OFFSET;
+        sagittalLine.position.z = tableZ;
 
         var anyMoveFlag = moveUp || moveDown || moveIn || moveOut;
         setIndicator("motion", anyMoveFlag && moved);
