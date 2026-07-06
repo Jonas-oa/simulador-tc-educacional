@@ -276,11 +276,18 @@
       gantryGroup.add(ring);
 
       // -----------------------------------------------------------
-      // Mesa de exame — limites físicos e estrutura telescópica
+      // Mesa de exame — limites físicos (valores conferidos com a
+      // especificação clínica):
+      //   • Altura do isocentro: 80 cm do piso
+      //   • Altura máxima da mesa: 100 cm
+      //   • Altura mínima da mesa: 50 cm
+      //   • Curso longitudinal total: ~200 cm
+      //   • Entrada máxima no gantry (além da face do bore): ~170 cm
+      //     (o restante do curso, ~30 cm, é a aproximação antes do bore)
       // -----------------------------------------------------------
-      var TABLE_Y_MIN = 0.50, TABLE_Y_MAX = 1.00;   // altura (m)
-      var TABLE_Z_MAX = 1.10, TABLE_Z_MIN = -0.90;  // curso longitudinal (m) — 2.00 m de curso total
-      var BORE_SAFE_Z = 0.80;                        // ponto em que a mesa cruza a face do gantry
+      var TABLE_Y_MIN = 0.50, TABLE_Y_MAX = 1.00;   // altura (m) — 50 a 100 cm
+      var TABLE_Z_MAX = 1.10, TABLE_Z_MIN = -0.90;  // curso longitudinal (m) — 200 cm de curso total
+      var BORE_SAFE_Z = 0.80;                        // ponto (m) em que a ponta da mesa cruza a face do gantry
       var SAFE_Y_MIN = 0.70, SAFE_Y_MAX = 0.90;      // faixa de altura segura para entrar no bore
 
       var tableY = 0.80; // inicia na altura do isocentro
@@ -372,29 +379,36 @@
       applyTablePose();
 
       // -----------------------------------------------------------
-      // Laser de posicionamento (linhas sagital + coronal, brilho aditivo)
+      // Laser de posicionamento — duas linhas grossas e nítidas
+      // (longitudinal/sagital + transversal/coronal), sem efeito de luz
+      // difusa. Usamos blending aditivo só para dar um leve "brilho" de
+      // linha de laser, sem parecer uma lâmpada acesa.
       // -----------------------------------------------------------
       var laserGroup = new THREE.Group();
       scene.add(laserGroup);
 
-      var laserGlowMat = new THREE.MeshBasicMaterial({
-        color: 0xff0000, transparent: true, opacity: 0.65,
-        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+      var LASER_THICKNESS = 0.012; // 12 mm — linha grossa e bem visível
+      var laserMat = new THREE.MeshBasicMaterial({
+        color: 0xff2222,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
       });
 
-      var sagittalLine = new THREE.Mesh(new THREE.PlaneGeometry(0.003, ROOM_D), laserGlowMat);
+      // Linha longitudinal (sagital) — acompanha o eixo Z, ao longo do
+      // corpo do paciente.
+      var sagittalLine = new THREE.Mesh(new THREE.PlaneGeometry(LASER_THICKNESS, 2.4), laserMat);
       sagittalLine.rotation.x = -Math.PI / 2;
-      sagittalLine.position.set(0, ISO_Y, -0.3);
+      sagittalLine.position.set(0, ISO_Y + 0.001, 0.2);
       laserGroup.add(sagittalLine);
 
-      var coronalLine = new THREE.Mesh(new THREE.PlaneGeometry(GW, 0.003), laserGlowMat);
+      // Linha transversal (coronal) — marca o ponto de entrada no gantry.
+      var coronalLine = new THREE.Mesh(new THREE.PlaneGeometry(GW * 0.9, LASER_THICKNESS), laserMat);
       coronalLine.rotation.x = -Math.PI / 2;
-      coronalLine.position.set(0, ISO_Y, -0.6 + GDEPTH / 2);
+      coronalLine.position.set(0, ISO_Y + 0.001, -0.6 + GDEPTH / 2);
       laserGroup.add(coronalLine);
-
-      var laserPoint = new THREE.PointLight(0xff0000, 0, 2.5, 1);
-      laserPoint.position.set(0, ISO_Y + BORE_R - 0.05, -0.6 + GDEPTH / 2);
-      laserGroup.add(laserPoint);
 
       laserGroup.visible = false;
 
@@ -559,9 +573,8 @@
         updateReadouts(speedMmS);
 
         if (laserOn) {
-          var pulse = 0.85 + Math.sin(now * 0.008) * 0.15;
-          laserPoint.intensity = 0.8 * pulse;
-          laserGlowMat.opacity = 0.65 * pulse;
+          var pulse = 0.85 + Math.sin(now * 0.006) * 0.15;
+          laserMat.opacity = 0.95 * pulse;
         }
 
         renderer.render(scene, camera);
