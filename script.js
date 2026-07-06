@@ -329,7 +329,10 @@
       //   - Paciente: abdome ~z+0.15, tórax ~z+0.36, cabeça ~z+0.75.
       //   - tableZ = -0.96 leva o tórax ao isocentro; -1.35 leva a cabeça.
       // -----------------------------------------------------------
-      var TABLE_Y_MIN = 0.50, TABLE_Y_MAX = 1.00;   // altura (m) — 50 a 100 cm
+      var TABLE_Y_MIN = 0.50;   // altura mínima mecânica FORA do gantry (m)
+      var TABLE_Y_MAX = 0.88;   // altura máxima geral (dentro e fora do gantry) — 88 cm
+      var GANTRY_Y_MIN = 0.64;  // altura mínima permitida DENTRO do gantry — 64 cm
+      var GANTRY_Y_MAX = 0.88;  // altura máxima permitida DENTRO do gantry — 88 cm
       var TABLE_Z_MAX = 0.90;                        // totalmente retraída (paciente fora, à frente do gantry)
       var TABLE_Z_MIN = -1.10;                       // inserção máxima — permite tórax/abdome/cabeça no isocentro
       var BORE_SAFE_Z = 0.20;                        // ponto (m) em que a ponta da mesa cruza a face do gantry
@@ -337,7 +340,8 @@
       // gantry (raio 40 cm / diâmetro 80 cm, em torno do isocentro de
       // 80 cm) comporta com folga toda a faixa mecânica da mesa, então a
       // faixa segura é a própria faixa completa de altura (50–100 cm).
-      var SAFE_Y_MIN = TABLE_Y_MIN, SAFE_Y_MAX = TABLE_Y_MAX;
+      // Faixa de altura permitida DENTRO do gantry: 64 a 88 cm.
+      var SAFE_Y_MIN = GANTRY_Y_MIN, SAFE_Y_MAX = GANTRY_Y_MAX;
 
       // Meia-espessura do paciente (do topo do tampo ao centro do corpo).
       // Usada para calcular o alinhamento do isocentro.
@@ -642,23 +646,29 @@
         var nextY = tableY, nextZ = tableZ;
         alertStatus = "";
 
-        if (moveUp) nextY = Math.min(TABLE_Y_MAX, tableY + SPEED_Y * dt);
-        if (moveDown) nextY = Math.max(TABLE_Y_MIN, tableY - SPEED_Y * dt);
+        // Contexto: a mesa está (ou vai ficar) dentro do gantry?
+        var isInsideBore = tableZ < BORE_SAFE_Z;
+
+        // Limites de altura dependem do contexto:
+        //   • Dentro do gantry: 64–88 cm (GANTRY_Y_MIN/MAX)
+        //   • Fora do gantry:   50–88 cm (TABLE_Y_MIN / TABLE_Y_MAX)
+        var yMin = isInsideBore ? GANTRY_Y_MIN : TABLE_Y_MIN;
+        var yMax = isInsideBore ? GANTRY_Y_MAX : TABLE_Y_MAX;
+
+        if (moveUp) nextY = Math.min(yMax, tableY + SPEED_Y * dt);
+        if (moveDown) nextY = Math.max(yMin, tableY - SPEED_Y * dt);
         if (moveIn) nextZ = Math.max(TABLE_Z_MIN, tableZ - SPEED_Z * dt);
         if (moveOut) nextZ = Math.min(TABLE_Z_MAX, tableZ + SPEED_Z * dt);
 
-        // Regras de intertravamento. Como o furo do gantry comporta toda
-        // a faixa mecânica de altura da mesa (50–100 cm), a altura pode
-        // ser ajustada livremente mesmo com a mesa inserida — os únicos
-        // limites são os mecânicos (TABLE_Y_MIN/MAX), já aplicados acima.
-        // Mantemos a estrutura de verificação para regras futuras.
-        var isInsideBore = tableZ < BORE_SAFE_Z;
+        // Intertravamento de entrada: só permite entrar no gantry se a
+        // altura estiver dentro da faixa segura (64–88 cm), evitando
+        // colisão com a estrutura do bore.
         var willEnterBore = nextZ < BORE_SAFE_Z && tableZ >= BORE_SAFE_Z;
-        var isHeightSafe = nextY >= SAFE_Y_MIN && nextY <= SAFE_Y_MAX;
+        var isHeightSafe = nextY >= GANTRY_Y_MIN && nextY <= GANTRY_Y_MAX;
 
         if (willEnterBore && !isHeightSafe) {
           nextZ = tableZ;
-          alertStatus = "ALTURA INCOMPATÍVEL para entrada no gantry";
+          alertStatus = "ALTURA INCOMPATÍVEL para entrada no gantry (ajuste para 64–88 cm)";
         }
 
         var moved = tableY !== nextY || tableZ !== nextZ;
