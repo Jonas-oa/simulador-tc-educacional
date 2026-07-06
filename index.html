@@ -171,7 +171,7 @@
       // Diagnóstico ativo: se em 5s a cena não sinalizar sucesso
       // (window.__ctSimulator definido pelo script.js), testamos cada
       // arquivo crítico individualmente para apontar exatamente qual falhou.
-      var criticalFiles = ["script.js"];
+      var criticalFiles = ["js/vendor/three.min.js", "script.js"];
       setTimeout(function () {
         if (window.__ctSimulator || window.__ctSimulatorErrorReported) return; // já inicializou ou já reportou erro real
         Promise.all(
@@ -187,6 +187,7 @@
     })();
   </script>
 
+  <script src="js/vendor/three.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
