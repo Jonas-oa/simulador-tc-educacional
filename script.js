@@ -593,7 +593,7 @@
       requestAnimationFrame(animate);
 
       showMessage(
-        "Simulador carregado. Este ambiente é exclusivamente educacional e não deve ser utilizado para qualquer finalidade clínica ou diagnóstica.",
+        "Simulador carregado (largura da janela: " + window.innerWidth + "px). Este ambiente é exclusivamente educacional e não deve ser utilizado para qualquer finalidade clínica ou diagnóstica.",
         "info"
       );
     } catch (error) {

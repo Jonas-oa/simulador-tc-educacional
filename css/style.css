@@ -111,7 +111,7 @@ body {
 /* Breakpoint alto de propósito: cobre tanto telas de tablet quanto o
    modo "Solicitar site para computador" do Chrome no Android, que força
    uma largura de viewport maior mesmo em telas físicas estreitas. */
-@media (max-width: 1024px) {
+@media (max-width: 1280px) {
   .app-main {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(240px, 45vh) auto;
