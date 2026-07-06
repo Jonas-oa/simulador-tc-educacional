@@ -577,7 +577,9 @@
       // -----------------------------------------------------------
       var hudPositionEl = document.getElementById("hud-table-position");
       var hudSpeedEl = document.getElementById("hud-table-speed");
+      var hudHeightEl = document.getElementById("hud-table-height");
       var displayTableEl = document.getElementById("display-table");
+      var displayHeightEl = document.getElementById("display-height");
 
       function updateReadouts(currentSpeedMmS) {
         // Posição longitudinal exibida em mm, com 0 mm = totalmente retraída.
@@ -586,6 +588,12 @@
         if (hudPositionEl) hudPositionEl.innerHTML = posText + " <small>mm</small>";
         if (displayTableEl) displayTableEl.textContent = posText + " mm";
         if (hudSpeedEl) hudSpeedEl.innerHTML = currentSpeedMmS.toFixed(1) + " <small>mm/s</small>";
+
+        // Altura da mesa em cm (útil para calibrar/verificar os limites).
+        var heightCm = tableY * 100;
+        var heightText = heightCm.toFixed(1);
+        if (hudHeightEl) hudHeightEl.innerHTML = heightText + " <small>cm</small>";
+        if (displayHeightEl) displayHeightEl.textContent = heightText + " cm";
       }
 
       // -----------------------------------------------------------
