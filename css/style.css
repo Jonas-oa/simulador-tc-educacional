@@ -417,6 +417,102 @@ body {
 /* ---------------------------------------------------------------------
    7) PAINEL DE MENSAGENS
 --------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------
+   SELETOR DE POSICIONAMENTO DO PACIENTE
+--------------------------------------------------------------------- */
+.pose-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, var(--bg-panel-raised), var(--bg-panel));
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.pose-toggle:hover { border-color: var(--accent-cyan-dim); }
+.pose-toggle__icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+}
+.pose-toggle__icon svg { width: 100%; height: 100%; }
+.pose-toggle__text {
+  flex: 1;
+  text-align: left;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.pose-toggle__chevron {
+  color: var(--text-muted);
+  transition: transform var(--transition-medium);
+}
+.pose-toggle[aria-expanded="true"] .pose-toggle__chevron {
+  transform: rotate(180deg);
+}
+
+.pose-panel {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-display);
+}
+.pose-panel[hidden] { display: none; }
+
+.pose-panel__section-title {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-cyan-dim);
+  margin: 4px 0 8px;
+}
+.pose-panel__section-title:not(:first-child) { margin-top: 14px; }
+
+.pose-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.pose-grid--2 { grid-template-columns: 1fr 1fr; }
+
+.pose-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel-raised);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.pose-option:hover { border-color: var(--accent-cyan-dim); color: var(--text-primary); }
+.pose-option[aria-pressed="true"] {
+  border-color: var(--accent-cyan);
+  background: var(--accent-cyan-dim);
+  color: var(--text-primary);
+}
+.pose-option__icon {
+  width: 100%;
+  height: 34px;
+  display: grid;
+  place-items: center;
+}
+.pose-option__icon svg { width: auto; height: 100%; }
+.pose-option__label {
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+
 .message-panel {
   display: flex;
   align-items: center;

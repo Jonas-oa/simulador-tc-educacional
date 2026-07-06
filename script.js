@@ -475,8 +475,64 @@
       // O paciente repousa sobre o topo do tampo (tampo tem 0.04 de
       // espessura, então topo em +0.02 em relação ao centro da mesa).
       // As costas ficam nesse plano; o corpo se estende para cima.
+      // O corpo (patient) fica dentro de um grupo de pose (patientPose)
+      // que aplica as rotações de decúbito e de entrada sem tocar na
+      // montagem interna do corpo. O offset de +0.02 (repouso sobre o
+      // tampo) fica no patient; o patientPose só rotaciona.
       patient.position.set(0, 0.02, 0);
-      tableGroup.add(patient);
+
+      var patientPose = new THREE.Group();
+      patientPose.add(patient);
+      tableGroup.add(patientPose);
+
+      // ----- Posicionamento do paciente (decúbito + entrada) -----
+      // Decúbito: rotação em Z (roll). Entrada: rotação em Y (yaw).
+      // Estado atual (índices):
+      var DECUBITOS = ["dorsal", "ventral", "lateral-d", "lateral-e"];
+      var ENTRADAS = ["cabeca", "pes"];
+      var currentDecubito = "dorsal";
+      var currentEntrada = "cabeca";
+
+      // Rotação de roll (eixo Z) por decúbito. O corpo é montado em
+      // decúbito dorsal (de costas), então:
+      var DECUBITO_ROLL = {
+        "dorsal": 0,
+        "ventral": Math.PI,          // de bruços
+        "lateral-d": Math.PI / 2,    // lateral direito
+        "lateral-e": -Math.PI / 2,   // lateral esquerdo
+      };
+
+      var DECUBITO_LABELS = {
+        "dorsal": "DORSAL", "ventral": "VENTRAL",
+        "lateral-d": "LAT. DIR.", "lateral-e": "LAT. ESQ.",
+      };
+      var ENTRADA_LABELS = { "cabeca": "CABEÇA", "pes": "PÉS" };
+      function decubitoLabel(d) { return DECUBITO_LABELS[d] || d; }
+      function entradaLabel(e) { return ENTRADA_LABELS[e] || e; }
+
+      var displayPositionEl = document.getElementById("display-position");
+
+      function applyPatientPose() {
+        // Roll pelo decúbito. Como o corpo está apoiado com o centro do
+        // torso ~TORSO_R acima do tampo, rotacionar em torno da origem do
+        // patientPose (nível do tampo) mantém o corpo apoiado.
+        var roll = DECUBITO_ROLL[currentDecubito] || 0;
+        // Yaw pela entrada: pés primeiro gira o corpo 180° em torno do Y,
+        // invertendo cabeça/pés na mesa.
+        var yaw = (currentEntrada === "pes") ? Math.PI : 0;
+        patientPose.rotation.set(0, yaw, roll);
+        // Ajuste de altura: em decúbito lateral o corpo é mais "alto"
+        // (ombro a ombro), então elevamos levemente para as costas/ombro
+        // apoiarem no tampo em vez de afundar.
+        var isLateral = (currentDecubito === "lateral-d" || currentDecubito === "lateral-e");
+        patientPose.position.y = isLateral ? TORSO_R : 0;
+
+        // Atualiza o texto do display.
+        if (displayPositionEl) {
+          displayPositionEl.textContent = decubitoLabel(currentDecubito) + " / " + entradaLabel(currentEntrada);
+        }
+      }
+      applyPatientPose();
 
       function applyTablePose() {
         tableGroup.position.set(0, tableY, tableZ);
@@ -753,6 +809,11 @@
           tableZeroRef = null;
           applyTablePose();
           setLaser(false);
+          currentDecubito = "dorsal";
+          currentEntrada = "cabeca";
+          applyPatientPose();
+          if (typeof updatePoseToggleFace === "function") updatePoseToggleFace();
+          if (typeof renderPoseOptions === "function") renderPoseOptions();
           simulationRunning = false;
           var statusEl = document.getElementById("display-status");
           if (statusEl) statusEl.textContent = "AGUARDANDO";
@@ -768,6 +829,131 @@
           showMessage("PARADA DE EMERGÊNCIA acionada. Todos os movimentos foram interrompidos.", "warning");
         });
       }
+
+      // -----------------------------------------------------------
+      // Seletor de posicionamento do paciente (decúbito + entrada)
+      // Ícones esquemáticos 2D em SVG. Layout vertical: botão que abre
+      // um painel expansível com as opções.
+      // -----------------------------------------------------------
+      // Ícones SVG esquemáticos (bonequinho visto conforme a posição).
+      // Cada um retorna uma string SVG simples, em cor de contorno.
+      function svgDecubito(kind) {
+        var stroke = 'stroke="currentColor" stroke-width="4" fill="none" stroke-linejoin="round" stroke-linecap="round"';
+        var fill = 'fill="currentColor"';
+        // Vista lateral esquemática deitado (linha da mesa embaixo).
+        var bed = '<line x1="8" y1="52" x2="88" y2="52" stroke="currentColor" stroke-width="3"/>';
+        if (kind === "dorsal") {
+          // De costas: corpo reto sobre a mesa, cabeça à direita.
+          return '<svg viewBox="0 0 96 64">' + bed +
+            '<circle cx="76" cy="40" r="8" ' + fill + '/>' +
+            '<rect x="16" y="36" width="52" height="10" rx="5" ' + fill + '/></svg>';
+        }
+        if (kind === "ventral") {
+          // De bruços: mesma silhueta, marcador indicando frente para baixo.
+          return '<svg viewBox="0 0 96 64">' + bed +
+            '<circle cx="76" cy="40" r="8" ' + fill + '/>' +
+            '<rect x="16" y="36" width="52" height="10" rx="5" ' + fill + '/>' +
+            '<line x1="20" y1="48" x2="64" y2="48" stroke="var(--bg-display)" stroke-width="2"/></svg>';
+        }
+        if (kind === "lateral-d" || kind === "lateral-e") {
+          // Vista frontal (de frente para o gantry): corpo de lado = perfil
+          // mais estreito e alto.
+          return '<svg viewBox="0 0 96 64">' + bed +
+            '<circle cx="48" cy="16" r="8" ' + fill + '/>' +
+            '<rect x="42" y="22" width="12" height="26" rx="6" ' + fill + '/></svg>';
+        }
+        return '<svg viewBox="0 0 96 64">' + bed + '</svg>';
+      }
+      function svgEntrada(kind) {
+        var fill = 'fill="currentColor"';
+        var bore = '<circle cx="78" cy="32" r="14" stroke="currentColor" stroke-width="3" fill="none"/>';
+        var bed = '<line x1="4" y1="46" x2="64" y2="46" stroke="currentColor" stroke-width="3"/>';
+        if (kind === "cabeca") {
+          // Cabeça primeiro: cabeça (círculo) voltada para o gantry (direita).
+          return '<svg viewBox="0 0 96 64">' + bore + bed +
+            '<circle cx="52" cy="34" r="7" ' + fill + '/>' +
+            '<rect x="10" y="31" width="40" height="8" rx="4" ' + fill + '/></svg>';
+        }
+        // Pés primeiro: cabeça à esquerda, pés para o gantry.
+        return '<svg viewBox="0 0 96 64">' + bore + bed +
+          '<circle cx="14" cy="34" r="7" ' + fill + '/>' +
+          '<rect x="16" y="31" width="40" height="8" rx="4" ' + fill + '/></svg>';
+      }
+
+      var poseToggle = document.getElementById("pose-toggle");
+      var posePanel = document.getElementById("pose-panel");
+      var poseCurrentIcon = document.getElementById("pose-current-icon");
+      var poseCurrentText = document.getElementById("pose-current-text");
+      var decubitoGrid = document.getElementById("pose-decubito-grid");
+      var entradaGrid = document.getElementById("pose-entrada-grid");
+
+      var DECUBITO_FULL = {
+        "dorsal": "Dorsal", "ventral": "Ventral",
+        "lateral-d": "Lateral direito", "lateral-e": "Lateral esquerdo",
+      };
+      var ENTRADA_FULL = { "cabeca": "Cabeça primeiro", "pes": "Pés primeiro" };
+
+      function updatePoseToggleFace() {
+        if (poseCurrentIcon) poseCurrentIcon.innerHTML = svgDecubito(currentDecubito);
+        if (poseCurrentText) {
+          poseCurrentText.textContent = DECUBITO_FULL[currentDecubito] + " · " + ENTRADA_FULL[currentEntrada];
+        }
+      }
+
+      function buildPoseOption(kind, label, svg, isSelected, onClick) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "pose-option";
+        btn.setAttribute("aria-pressed", String(isSelected));
+        btn.innerHTML = '<span class="pose-option__icon">' + svg + '</span>' +
+          '<span class="pose-option__label">' + label + '</span>';
+        btn.addEventListener("click", onClick);
+        return btn;
+      }
+
+      function renderPoseOptions() {
+        if (decubitoGrid) {
+          decubitoGrid.innerHTML = "";
+          DECUBITOS.forEach(function (d) {
+            decubitoGrid.appendChild(buildPoseOption(
+              d, DECUBITO_FULL[d], svgDecubito(d), d === currentDecubito,
+              function () {
+                currentDecubito = d;
+                applyPatientPose();
+                updatePoseToggleFace();
+                renderPoseOptions();
+                showMessage("Decúbito: " + DECUBITO_FULL[d] + ".", "info");
+              }
+            ));
+          });
+        }
+        if (entradaGrid) {
+          entradaGrid.innerHTML = "";
+          ENTRADAS.forEach(function (e) {
+            entradaGrid.appendChild(buildPoseOption(
+              e, ENTRADA_FULL[e], svgEntrada(e), e === currentEntrada,
+              function () {
+                currentEntrada = e;
+                applyPatientPose();
+                updatePoseToggleFace();
+                renderPoseOptions();
+                showMessage("Entrada no gantry: " + ENTRADA_FULL[e] + ".", "info");
+              }
+            ));
+          });
+        }
+      }
+
+      if (poseToggle && posePanel) {
+        poseToggle.addEventListener("click", function () {
+          var isOpen = poseToggle.getAttribute("aria-expanded") === "true";
+          poseToggle.setAttribute("aria-expanded", String(!isOpen));
+          posePanel.hidden = isOpen;
+        });
+      }
+      updatePoseToggleFace();
+      renderPoseOptions();
+
 
       // Atalhos de teclado (úteis em desktop; não interferem no touch)
       window.addEventListener("keydown", function (e) {

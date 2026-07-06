@@ -97,6 +97,21 @@
         </div>
       </div>
 
+      <div class="console__group" aria-label="Posicionamento do paciente">
+        <h2 class="console__group-title">Posicionamento</h2>
+        <button class="pose-toggle" id="pose-toggle" type="button" aria-expanded="false" aria-controls="pose-panel">
+          <span class="pose-toggle__icon" id="pose-current-icon" aria-hidden="true"></span>
+          <span class="pose-toggle__text" id="pose-current-text">Dorsal · Cabeça primeiro</span>
+          <span class="pose-toggle__chevron" aria-hidden="true">⌄</span>
+        </button>
+        <div class="pose-panel" id="pose-panel" hidden>
+          <div class="pose-panel__section-title">Decúbito</div>
+          <div class="pose-grid" id="pose-decubito-grid"></div>
+          <div class="pose-panel__section-title">Entrada no gantry</div>
+          <div class="pose-grid pose-grid--2" id="pose-entrada-grid"></div>
+        </div>
+      </div>
+
       <div class="console__group" aria-label="Controles de mesa">
         <h2 class="console__group-title">Mesa de Exame</h2>
         <div class="btn-grid">
