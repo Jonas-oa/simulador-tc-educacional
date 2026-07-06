@@ -453,39 +453,141 @@
       applyTablePose();
 
       // -----------------------------------------------------------
-      // Laser de posicionamento — FIXO no gantry (não acompanha a mesa).
-      // Assim como no equipamento real, o paciente é que se desloca
-      // através da cruz de laser, que marca o plano de corte atual.
-      //   • Transversal: liga 3h a 9h (linha horizontal)
-      //   • Longitudinal: liga 12h a 6h (linha vertical)
-      // Ambas ficam no plano de entrada do gantry (fixo em X/Y/Z).
+      // Laser de posicionamento — FIXO no gantry, projetado sobre as
+      // superfícies (paciente / colchão / tampo) via raycasting, para
+      // se comportar como luz real: reto sobre superfície plana, seguindo
+      // as ondulações sobre o corpo, e SEM atravessar o paciente (cada
+      // raio marca apenas o primeiro ponto de impacto = face iluminada).
+      //
+      // Pontos de origem (na face de entrada do gantry, ao redor do bore):
+      //   • 12h (topo): feixe LONGITUDINAL central (linha média sagital,
+      //     no topo do corpo) + feixe TRANSVERSAL (cruza o corpo, marca
+      //     o início do exame).
+      //   • 3h e 9h (laterais): feixes LONGITUDINAIS laterais (planos
+      //     sagitais nas laterais do corpo).
+      //
+      // Cobertura longitudinal de cada feixe: ~20 cm para fora do gantry
+      // e ~50 cm para dentro (total ~70 cm em Z).
       // -----------------------------------------------------------
-      var laserGroup = new THREE.Group();
-      var GANTRY_FACE_Z = -0.6 + GDEPTH / 2 + 0.005;
-      laserGroup.position.set(0, ISO_Y, GANTRY_FACE_Z);
-      scene.add(laserGroup);
+      var GANTRY_FACE_Z = -0.6 + GDEPTH / 2 + 0.005; // Z do plano dos lasers (face de entrada)
+      var LASER_COLOR = 0xff2222;
 
-      var LASER_THICKNESS = 0.014; // 14 mm — linha grossa e bem visível
-      var LASER_SPAN = BORE_R * 1.9; // cobre quase todo o diâmetro do bore
-      var laserMat = new THREE.MeshBasicMaterial({
-        color: 0xff2222,
+      // Extensão longitudinal dos feixes (em Z, relativo à face do gantry).
+      var LASER_LONG_OUT = 0.20;  // 20 cm para fora (em direção +Z, saída)
+      var LASER_LONG_IN = 0.50;   // 50 cm para dentro (em direção -Z)
+      // Extensão transversal do feixe (em X), cobrindo a largura do corpo.
+      var LASER_TRANS_HALF = 0.30; // 30 cm para cada lado do centro
+
+      var LASER_SEGMENTS = 64;    // resolução das linhas projetadas
+      var LASER_LIFT = 0.004;     // pequeno "levantamento" sobre a superfície p/ evitar z-fighting
+
+      // Origem dos raios: bem acima/ao lado, na borda do bore, apontando
+      // para o centro (isocentro). Y de referência do isocentro.
+      var laserOriginTop = new THREE.Vector3(0, ISO_Y + BORE_R, GANTRY_FACE_Z);
+      var laserOriginRight = new THREE.Vector3(BORE_R, ISO_Y, GANTRY_FACE_Z);
+      var laserOriginLeft = new THREE.Vector3(-BORE_R, ISO_Y, GANTRY_FACE_Z);
+
+      // Material das linhas do laser (LineBasicMaterial: linha fina e nítida).
+      var laserLineMat = new THREE.LineBasicMaterial({
+        color: LASER_COLOR,
         transparent: true,
         opacity: 0.95,
-        blending: THREE.AdditiveBlending,
+        depthTest: true,   // respeita a profundidade: não atravessa o corpo
         depthWrite: false,
-        depthTest: false, // sempre desenha por cima — "reflete" visualmente sobre o paciente em qualquer ângulo
-        side: THREE.DoubleSide,
       });
 
-      // Transversal (3h ↔ 9h): linha horizontal, parada no eixo X.
-      var transversalLine = new THREE.Mesh(new THREE.PlaneGeometry(LASER_SPAN, LASER_THICKNESS), laserMat);
-      transversalLine.renderOrder = 999;
-      laserGroup.add(transversalLine);
+      var laserGroup = new THREE.Group();
+      scene.add(laserGroup);
 
-      // Longitudinal (12h ↔ 6h): linha vertical, parada no eixo Y.
-      var longitudinalLine = new THREE.Mesh(new THREE.PlaneGeometry(LASER_THICKNESS, LASER_SPAN), laserMat);
-      longitudinalLine.renderOrder = 999;
-      laserGroup.add(longitudinalLine);
+      // Cria uma linha (THREE.Line) com N segmentos, adicionada ao grupo.
+      function makeLaserLine(nPoints) {
+        var positions = new Float32Array(nPoints * 3);
+        var geom = new THREE.BufferGeometry();
+        geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        var line = new THREE.Line(geom, laserLineMat);
+        line.frustumCulled = false;
+        line.renderOrder = 999;
+        laserGroup.add(line);
+        return line;
+      }
+
+      var longCentralLine = makeLaserLine(LASER_SEGMENTS + 1);
+      var longRightLine = makeLaserLine(LASER_SEGMENTS + 1);
+      var longLeftLine = makeLaserLine(LASER_SEGMENTS + 1);
+      var transversalLine = makeLaserLine(LASER_SEGMENTS + 1);
+
+      // Raycaster reutilizável e alvos de projeção.
+      var laserRaycaster = new THREE.Raycaster();
+      var laserTargets = [];   // preenchido após a criação de paciente/mesa
+      var _rayDir = new THREE.Vector3();
+      var _rayFallback = new THREE.Vector3();
+
+      // Projeta um ponto: lança um raio da origem em direção ao alvo
+      // aproximado (x,z no plano do isocentro) e retorna o ponto de
+      // impacto na primeira superfície. Se nada for atingido, cai no
+      // plano do tampo (yFallback).
+      function projectLaserPoint(origin, x, z, yFallback, out) {
+        // Alvo aproximado no plano do isocentro (levemente abaixo, para o
+        // raio "descer" sobre as superfícies).
+        _rayFallback.set(x, yFallback, z);
+        _rayDir.copy(_rayFallback).sub(origin).normalize();
+        laserRaycaster.set(origin, _rayDir);
+        var hits = laserRaycaster.intersectObjects(laserTargets, true);
+        if (hits.length > 0) {
+          out.copy(hits[0].point);
+          out.y += LASER_LIFT;
+        } else {
+          out.set(x, yFallback + LASER_LIFT, z);
+        }
+        return out;
+      }
+
+      var _p = new THREE.Vector3();
+
+      // Atualiza a geometria de uma linha longitudinal (varre em Z).
+      function updateLongitudinalLine(line, origin, xFixed, yFallback) {
+        var pos = line.geometry.attributes.position.array;
+        var zStart = GANTRY_FACE_Z + LASER_LONG_OUT;   // 20 cm para fora
+        var zEnd = GANTRY_FACE_Z - LASER_LONG_IN;      // 50 cm para dentro
+        for (var i = 0; i <= LASER_SEGMENTS; i++) {
+          var t = i / LASER_SEGMENTS;
+          var z = zStart + (zEnd - zStart) * t;
+          projectLaserPoint(origin, xFixed, z, yFallback, _p);
+          pos[i * 3] = _p.x;
+          pos[i * 3 + 1] = _p.y;
+          pos[i * 3 + 2] = _p.z;
+        }
+        line.geometry.attributes.position.needsUpdate = true;
+        line.geometry.computeBoundingSphere();
+      }
+
+      // Atualiza a geometria da linha transversal (varre em X, Z fixo).
+      function updateTransversalLine(line, origin, zFixed, yFallback) {
+        var pos = line.geometry.attributes.position.array;
+        for (var i = 0; i <= LASER_SEGMENTS; i++) {
+          var t = i / LASER_SEGMENTS;
+          var x = -LASER_TRANS_HALF + (2 * LASER_TRANS_HALF) * t;
+          projectLaserPoint(origin, x, zFixed, yFallback, _p);
+          pos[i * 3] = _p.x;
+          pos[i * 3 + 1] = _p.y;
+          pos[i * 3 + 2] = _p.z;
+        }
+        line.geometry.attributes.position.needsUpdate = true;
+        line.geometry.computeBoundingSphere();
+      }
+
+      function updateLasers() {
+        if (!laserGroup.visible) return;
+        var yFallback = tableY + 0.02; // topo do tampo como piso do laser
+        updateLongitudinalLine(longCentralLine, laserOriginTop, 0, yFallback);
+        updateLongitudinalLine(longRightLine, laserOriginRight, 0.12, yFallback);
+        updateLongitudinalLine(longLeftLine, laserOriginLeft, -0.12, yFallback);
+        updateTransversalLine(transversalLine, laserOriginTop, GANTRY_FACE_Z, yFallback);
+      }
+
+      // Superfícies onde o laser é projetado (paciente, colchão, tampo).
+      // Definidas aqui pois todas já foram criadas acima.
+      laserTargets = [patient, cushion, topPlate];
 
       laserGroup.visible = false;
 
@@ -498,6 +600,12 @@
       var laserOn = false;
       var alertStatus = "";
       var simulationRunning = false;
+      // Referência de "zero" da posição da mesa (definida pelo botão Zerar
+      // com o laser transversal). A leitura de posição passa a ser relativa
+      // a esse ponto — é o marco zero para a futura aquisição do exame.
+      // Inicia em null: enquanto não zerado, a posição é medida a partir da
+      // retração total (comportamento anterior).
+      var tableZeroRef = null;
 
       function setHeld(el, setter) {
         if (!el) return;
@@ -527,6 +635,7 @@
       var btnIn = document.getElementById("btn-table-in");
       var btnOut = document.getElementById("btn-table-out");
       var btnLaser = document.getElementById("btn-laser");
+      var btnZero = document.getElementById("btn-zero");
       var btnStart = document.getElementById("btn-start");
       var btnReset = document.getElementById("btn-reset");
       var btnStop = document.getElementById("btn-stop");
@@ -542,7 +651,18 @@
           laserGroup.visible = laserOn;
           btnLaser.setAttribute("aria-pressed", String(laserOn));
           setIndicator("laser", laserOn);
+          if (laserOn) updateLasers();
           showMessage(laserOn ? "Laser de posicionamento ligado." : "Laser de posicionamento desligado.", "info");
+        });
+      }
+
+      if (btnZero) {
+        btnZero.addEventListener("click", function () {
+          // Define a posição atual da mesa como o ponto zero de referência
+          // para a aquisição. O laser transversal marca esse plano.
+          tableZeroRef = tableZ;
+          updateReadouts(0);
+          showMessage("Posição da mesa zerada neste ponto (marco zero para a aquisição). Este é um ponto de controle — não é obrigatório para adquirir o exame.", "success");
         });
       }
 
@@ -557,6 +677,7 @@
         btnReset.addEventListener("click", function () {
           tableY = 0.80;
           tableZ = TABLE_Z_MAX;
+          tableZeroRef = null;
           applyTablePose();
           laserOn = false;
           laserGroup.visible = false;
@@ -603,9 +724,12 @@
       var displayStatusEl = document.getElementById("display-status");
 
       function updateReadouts(currentSpeedMmS) {
-        // Posição longitudinal exibida em mm, com 0 mm = totalmente retraída.
-        var posMm = (TABLE_Z_MAX - tableZ) * 1000;
-        var posText = posMm.toFixed(1).padStart(5, "0");
+        // Posição longitudinal em mm. Se o operador zerou a mesa (botão
+        // Zerar), a leitura é relativa a esse ponto (pode ser negativa);
+        // caso contrário, 0 mm = totalmente retraída.
+        var refZ = (tableZeroRef !== null) ? tableZeroRef : TABLE_Z_MAX;
+        var posMm = (refZ - tableZ) * 1000;
+        var posText = (posMm >= 0 ? "" : "-") + Math.abs(posMm).toFixed(1).padStart(5, "0");
         if (hudPositionEl) hudPositionEl.innerHTML = posText + " <small>mm</small>";
         if (displayTableEl) displayTableEl.textContent = posText + " mm";
         if (hudSpeedEl) hudSpeedEl.innerHTML = currentSpeedMmS.toFixed(1) + " <small>mm/s</small>";
@@ -691,8 +815,9 @@
         updateReadouts(speedMmS);
 
         if (laserOn) {
-          var pulse = 0.85 + Math.sin(now * 0.006) * 0.15;
-          laserMat.opacity = 0.95 * pulse;
+          var pulse = 0.8 + Math.sin(now * 0.006) * 0.2;
+          laserLineMat.opacity = pulse;
+          updateLasers();
         }
 
         renderer.render(scene, camera);
