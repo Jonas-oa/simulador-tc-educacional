@@ -332,10 +332,14 @@
       var TABLE_Z_MIN = 0.03;                        // inserção máxima — ponta da mesa para ~8cm antes da parede traseira do túnel
       var BORE_SAFE_Z = 0.80;                        // ponto (m) em que a ponta da mesa cruza a face do gantry
       // Faixa de altura segura para permanecer/entrar no bore. O furo do
-      // gantry (raio 36 cm em torno do isocentro de 80 cm) comporta com
-      // folga toda a faixa mecânica da mesa, então a faixa segura é a
-      // própria faixa completa de altura (50–100 cm).
+      // gantry (raio 40 cm / diâmetro 80 cm, em torno do isocentro de
+      // 80 cm) comporta com folga toda a faixa mecânica da mesa, então a
+      // faixa segura é a própria faixa completa de altura (50–100 cm).
       var SAFE_Y_MIN = TABLE_Y_MIN, SAFE_Y_MAX = TABLE_Y_MAX;
+
+      // Meia-espessura do paciente (do topo do tampo ao centro do corpo).
+      // Usada para calcular o alinhamento do isocentro.
+      var PATIENT_HALF_THICKNESS = 0.12; // 12 cm (espessura média ~24 cm)
 
       var tableY = 0.80; // inicia na altura do isocentro
       var tableZ = TABLE_Z_MAX; // inicia totalmente retraída (fora do gantry)
@@ -390,17 +394,26 @@
       // posicionamento; decúbitos serão selecionáveis em etapa futura).
       // Comprimento total ~1.7 m, da cabeça (+) aos pés (-), cabendo
       // inteira dentro do tampo da mesa (1.95 m).
+      //
+      // Espessura considerada: adulto médio em decúbito dorsal ≈ 24 cm
+      // (raio do torso ~0.12 m). O paciente repousa SOBRE o tampo: as
+      // costas tocam o tampo e o corpo se estende para cima. Assim o
+      // centro do corpo fica ~12 cm acima do tampo — por isso, para
+      // centralizar o paciente no isocentro (80 cm), o operador desce a
+      // mesa até o tampo ficar em ~66 cm (comportamento realista).
       var patient = new THREE.Group();
       var skin = new THREE.MeshStandardMaterial({ color: 0xe3b993, roughness: 0.7 });
       var scrub = new THREE.MeshStandardMaterial({ color: 0x4f7d8c, roughness: 0.85 });
 
-      var head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 16), skin);
-      head.position.set(0, 0.14, 0.75);
+      var TORSO_R = 0.12; // raio do torso — espessura ~24 cm
+
+      var head = new THREE.Mesh(new THREE.SphereGeometry(0.10, 20, 16), skin);
+      head.position.set(0, TORSO_R, 0.75);
       patient.add(head);
 
-      var torso = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.55, 16), scrub);
+      var torso = new THREE.Mesh(new THREE.CylinderGeometry(TORSO_R, TORSO_R + 0.02, 0.55, 16), scrub);
       torso.rotation.x = Math.PI / 2;
-      torso.position.set(0, 0.13, 0.36);
+      torso.position.set(0, TORSO_R, 0.36);
       patient.add(torso);
 
       function limb(r, l, x, y, z, mat) {
@@ -410,15 +423,18 @@
         return m;
       }
       // Braços — ao lado do tronco, mesma região em Z.
-      patient.add(limb(0.045, 0.5, -0.19, 0.11, 0.36, scrub));
-      patient.add(limb(0.045, 0.5, 0.19, 0.11, 0.36, scrub));
+      patient.add(limb(0.04, 0.5, -0.15, TORSO_R * 0.75, 0.36, scrub));
+      patient.add(limb(0.04, 0.5, 0.15, TORSO_R * 0.75, 0.36, scrub));
       // Coxas — entre o quadril e os joelhos.
-      patient.add(limb(0.05, 0.45, -0.11, 0.12, -0.15, scrub));
-      patient.add(limb(0.05, 0.45, 0.11, 0.12, -0.15, scrub));
+      patient.add(limb(0.05, 0.45, -0.08, TORSO_R * 0.8, -0.15, scrub));
+      patient.add(limb(0.05, 0.45, 0.08, TORSO_R * 0.8, -0.15, scrub));
       // Pernas/pés — do joelho aos pés.
-      patient.add(limb(0.04, 0.4, -0.11, 0.12, -0.6, skin));
-      patient.add(limb(0.04, 0.4, 0.11, 0.12, -0.6, skin));
-      patient.position.set(0, 0.09, 0);
+      patient.add(limb(0.04, 0.4, -0.08, TORSO_R * 0.8, -0.6, skin));
+      patient.add(limb(0.04, 0.4, 0.08, TORSO_R * 0.8, -0.6, skin));
+      // O paciente repousa sobre o topo do tampo (tampo tem 0.04 de
+      // espessura, então topo em +0.02 em relação ao centro da mesa).
+      // As costas ficam nesse plano; o corpo se estende para cima.
+      patient.position.set(0, 0.02, 0);
       tableGroup.add(patient);
 
       function applyTablePose() {
@@ -527,9 +543,7 @@
       if (btnStart) {
         btnStart.addEventListener("click", function () {
           simulationRunning = true;
-          var statusEl = document.getElementById("display-status");
-          if (statusEl) statusEl.textContent = "EM ANDAMENTO";
-          showMessage("Simulação iniciada. Use os controles da mesa para posicionar o paciente.", "success");
+          showMessage("Simulação iniciada. Ajuste a altura da mesa para alinhar o centro do paciente ao isocentro (o status indica: DESCER / SUBIR MESA / ISOCENTRO OK).", "success");
         });
       }
 
@@ -580,6 +594,7 @@
       var hudHeightEl = document.getElementById("hud-table-height");
       var displayTableEl = document.getElementById("display-table");
       var displayHeightEl = document.getElementById("display-height");
+      var displayStatusEl = document.getElementById("display-status");
 
       function updateReadouts(currentSpeedMmS) {
         // Posição longitudinal exibida em mm, com 0 mm = totalmente retraída.
@@ -594,6 +609,23 @@
         var heightText = heightCm.toFixed(1);
         if (hudHeightEl) hudHeightEl.innerHTML = heightText + " <small>cm</small>";
         if (displayHeightEl) displayHeightEl.textContent = heightText + " cm";
+
+        // Alinhamento no isocentro: o centro do corpo do paciente fica
+        // ~12 cm (metade da espessura) acima do topo do tampo. O tampo
+        // (tableY) precisa estar ~14 cm abaixo do isocentro para que o
+        // centro do paciente coincida com os 80 cm. Isso ensina o aluno
+        // a "descer a mesa" para centralizar o paciente.
+        var patientCenterY = tableY + 0.02 + PATIENT_HALF_THICKNESS;
+        var isoDelta = Math.abs(patientCenterY - ISO_Y);
+        if (displayStatusEl && simulationRunning) {
+          if (isoDelta <= 0.01) {
+            displayStatusEl.textContent = "ISOCENTRO OK";
+          } else if (patientCenterY > ISO_Y) {
+            displayStatusEl.textContent = "DESCER MESA";
+          } else {
+            displayStatusEl.textContent = "SUBIR MESA";
+          }
+        }
       }
 
       // -----------------------------------------------------------
