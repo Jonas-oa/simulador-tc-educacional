@@ -274,7 +274,7 @@
       var gantryGroup = new THREE.Group();
       scene.add(gantryGroup);
 
-      var GW = 2.0, GH = 1.9, GDEPTH = 0.85, BORE_R = 0.36;
+      var GW = 2.0, GH = 1.9, GDEPTH = 0.85, BORE_R = 0.40; // bore de 80cm de diâmetro
       var ISO_Y = 0.80; // altura do isocentro
 
       var gShape = new THREE.Shape();
