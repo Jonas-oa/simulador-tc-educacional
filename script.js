@@ -96,8 +96,8 @@
       // Cena, câmera, renderizador
       // -----------------------------------------------------------
       var scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x0d1013);
-      scene.fog = new THREE.Fog(0x0d1013, 9, 22);
+      scene.background = new THREE.Color(0x3a4149);
+      scene.fog = new THREE.Fog(0x3a4149, 10, 24);
 
       var camera = new THREE.PerspectiveCamera(48, container.clientWidth / container.clientHeight, 0.05, 100);
 
@@ -204,52 +204,75 @@
       }, { passive: false });
 
       // -----------------------------------------------------------
-      // Iluminação
+      // Iluminação — difusa e "clínica" (sala bem iluminada, sombras suaves)
       // -----------------------------------------------------------
-      scene.add(new THREE.AmbientLight(0x556270, 0.55));
-      var key = new THREE.DirectionalLight(0xdfe9f5, 0.9);
-      key.position.set(3, 6, 2);
+      scene.add(new THREE.AmbientLight(0xf0f4f8, 0.45));
+      scene.add(new THREE.HemisphereLight(0xffffff, 0xb9c2ca, 0.5));
+
+      var key = new THREE.DirectionalLight(0xffffff, 0.65);
+      key.position.set(2.5, 5.5, 2);
       key.castShadow = true;
       key.shadow.mapSize.set(2048, 2048);
       key.shadow.camera.near = 0.5;
       key.shadow.camera.far = 20;
       key.shadow.camera.left = -6; key.shadow.camera.right = 6;
       key.shadow.camera.top = 6; key.shadow.camera.bottom = -6;
+      key.shadow.radius = 4; // sombras mais suaves
       scene.add(key);
 
-      var fill = new THREE.DirectionalLight(0x88a0c0, 0.25);
-      fill.position.set(-4, 3, -3);
+      var fill = new THREE.DirectionalLight(0xe8f0f8, 0.3);
+      fill.position.set(-4, 3.5, -3);
       scene.add(fill);
 
       // -----------------------------------------------------------
-      // Sala (piso, paredes, teto)
+      // Sala clínica (piso vinílico, paredes off-white com rodapé,
+      // janela da sala de comando, porta e luminárias embutidas)
       // -----------------------------------------------------------
       var ROOM_W = 6.2, ROOM_D = 6.2, ROOM_H = 3.2;
 
-      function checkerTexture(c1, c2, size, rep) {
+      // Piso vinílico cinza claro: cor base uniforme com juntas de placa
+      // bem sutis (linhas finas), sem contraste de tabuleiro.
+      function vinylFloorTexture() {
+        var size = 512;
         var cnv = document.createElement("canvas");
         cnv.width = cnv.height = size;
         var ctx = cnv.getContext("2d");
-        ctx.fillStyle = c1; ctx.fillRect(0, 0, size, size);
-        ctx.fillStyle = c2; ctx.fillRect(0, 0, size / 2, size / 2); ctx.fillRect(size / 2, size / 2, size / 2, size / 2);
+        ctx.fillStyle = "#cdd3d8";
+        ctx.fillRect(0, 0, size, size);
+        // Manchas suaves de vinílico (ruído leve)
+        for (var i = 0; i < 900; i++) {
+          ctx.fillStyle = "rgba(255,255,255," + (Math.random() * 0.045) + ")";
+          ctx.fillRect(Math.random() * size, Math.random() * size, 2.5, 2.5);
+          ctx.fillStyle = "rgba(90,100,110," + (Math.random() * 0.05) + ")";
+          ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
+        }
+        // Juntas de placas (grade sutil)
+        ctx.strokeStyle = "rgba(120,130,140,0.35)";
+        ctx.lineWidth = 1;
+        var cells = 4; // 4x4 placas por tile
+        for (var g = 0; g <= cells; g++) {
+          var p = (g / cells) * size;
+          ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, size); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(size, p); ctx.stroke();
+        }
         var tex = new THREE.CanvasTexture(cnv);
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(rep, rep);
+        tex.repeat.set(3, 3); // placas de ~50 cm
         return tex;
       }
 
       var floor = new THREE.Mesh(
         new THREE.PlaneGeometry(ROOM_W, ROOM_D),
-        new THREE.MeshStandardMaterial({ map: checkerTexture("#c9d2da", "#bcc6cf", 256, ROOM_W * 2), roughness: 0.55, metalness: 0.05 })
+        new THREE.MeshStandardMaterial({ map: vinylFloorTexture(), roughness: 0.5, metalness: 0.04 })
       );
       floor.rotation.x = -Math.PI / 2;
       floor.receiveShadow = true;
       scene.add(floor);
 
-      var wallMat = new THREE.MeshStandardMaterial({ color: 0xdfe6ec, roughness: 0.9 });
-      var wallMatAccent = new THREE.MeshStandardMaterial({ color: 0xc7d3dc, roughness: 0.9 });
+      // Paredes off-white
+      var wallMat = new THREE.MeshStandardMaterial({ color: 0xeef0f0, roughness: 0.92 });
 
-      var backWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_H), wallMatAccent);
+      var backWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_H), wallMat);
       backWall.position.set(0, ROOM_H / 2, -ROOM_D / 2);
       scene.add(backWall);
 
@@ -263,10 +286,70 @@
       rightWall.position.set(ROOM_W / 2, ROOM_H / 2, 0);
       scene.add(rightWall);
 
-      var ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_D), new THREE.MeshStandardMaterial({ color: 0xf2f5f8, roughness: 1 }));
+      // Rodapé cinza nas três paredes (faixa fina na base)
+      var skirtMat = new THREE.MeshStandardMaterial({ color: 0x9aa4ac, roughness: 0.6 });
+      function skirt(w, x, z, rotY) {
+        var s = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.12), skirtMat);
+        s.position.set(x, 0.06, z);
+        s.rotation.y = rotY;
+        return s;
+      }
+      scene.add(skirt(ROOM_W, 0, -ROOM_D / 2 + 0.005, 0));
+      scene.add(skirt(ROOM_D, -ROOM_W / 2 + 0.005, 0, Math.PI / 2));
+      scene.add(skirt(ROOM_D, ROOM_W / 2 - 0.005, 0, -Math.PI / 2));
+
+      // Janela da sala de comando (parede esquerda): vidro escuro com
+      // moldura, como nas salas de TC reais (o operador observa por ela).
+      var winFrame = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.7, 1.0),
+        new THREE.MeshStandardMaterial({ color: 0x4a545c, roughness: 0.5 })
+      );
+      winFrame.rotation.y = Math.PI / 2;
+      winFrame.position.set(-ROOM_W / 2 + 0.01, 1.5, 1.2);
+      scene.add(winFrame);
+      var winGlass = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.56, 0.86),
+        new THREE.MeshStandardMaterial({ color: 0x1a2630, roughness: 0.15, metalness: 0.4 })
+      );
+      winGlass.rotation.y = Math.PI / 2;
+      winGlass.position.set(-ROOM_W / 2 + 0.02, 1.5, 1.2);
+      scene.add(winGlass);
+
+      // Porta (parede esquerda, mais ao fundo): madeira clara com moldura.
+      var doorFrame = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.0, 2.15),
+        new THREE.MeshStandardMaterial({ color: 0x5a636b, roughness: 0.6 })
+      );
+      doorFrame.rotation.y = Math.PI / 2;
+      doorFrame.position.set(-ROOM_W / 2 + 0.01, 2.15 / 2, -1.6);
+      scene.add(doorFrame);
+      var door = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.9, 2.05),
+        new THREE.MeshStandardMaterial({ color: 0xa87d4f, roughness: 0.65 })
+      );
+      door.rotation.y = Math.PI / 2;
+      door.position.set(-ROOM_W / 2 + 0.02, 2.05 / 2, -1.6);
+      scene.add(door);
+
+      // Teto branco com luminárias retangulares embutidas (emissivas).
+      var ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_D), new THREE.MeshStandardMaterial({ color: 0xf5f7f9, roughness: 1 }));
       ceiling.rotation.x = Math.PI / 2;
       ceiling.position.y = ROOM_H;
       scene.add(ceiling);
+
+      var lightPanelMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff, emissive: 0xf4f8fc, emissiveIntensity: 0.9, roughness: 0.3,
+      });
+      function ceilingLight(x, z) {
+        var panel = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.55), lightPanelMat);
+        panel.rotation.x = Math.PI / 2;
+        panel.position.set(x, ROOM_H - 0.01, z);
+        return panel;
+      }
+      scene.add(ceilingLight(-1.5, -1.5));
+      scene.add(ceilingLight(1.5, -1.5));
+      scene.add(ceilingLight(-1.5, 1.5));
+      scene.add(ceilingLight(1.5, 1.5));
 
       // -----------------------------------------------------------
       // Gantry — modelo realista inspirado no Somatom Definition Edge:
