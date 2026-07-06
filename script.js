@@ -431,6 +431,7 @@
         opacity: 0.95,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
+        depthTest: false, // sempre desenha por cima — "reflete" visualmente sobre o paciente em qualquer ângulo
         side: THREE.DoubleSide,
       });
 
@@ -439,12 +440,14 @@
       // mesa em qualquer posição (fora ou dentro do gantry).
       var sagittalLine = new THREE.Mesh(new THREE.PlaneGeometry(LASER_THICKNESS, 3.2), laserMat);
       sagittalLine.rotation.x = -Math.PI / 2;
+      sagittalLine.renderOrder = 999;
       laserGroup.add(sagittalLine);
 
       // Linha transversal (coronal) — marca o ponto de entrada no gantry.
       var coronalLine = new THREE.Mesh(new THREE.PlaneGeometry(GW * 0.9, LASER_THICKNESS), laserMat);
       coronalLine.rotation.x = -Math.PI / 2;
       coronalLine.position.set(0, 0, -0.6 + GDEPTH / 2); // Z fixo: plano de entrada do gantry
+      coronalLine.renderOrder = 999;
       laserGroup.add(coronalLine);
 
       var PATIENT_SURFACE_OFFSET = 0.24; // altura aproximada do topo do paciente acima do tampo da mesa
@@ -590,18 +593,25 @@
         if (moveOut) nextZ = Math.min(TABLE_Z_MAX, tableZ + SPEED_Z * dt);
 
         // Regras de intertravamento (Regra Absoluta: nunca permitir
-        // colisão entre a mesa e o gantry).
+        // colisão entre a mesa e o gantry). Dentro do bore, a altura
+        // pode ser ajustada livremente dentro da faixa segura
+        // (SAFE_Y_MIN–SAFE_Y_MAX), para permitir o ajuste fino da
+        // posição do paciente no isocentro — mas não pode sair dessa
+        // faixa, para não colidir com a estrutura do gantry.
         var isInsideBore = tableZ < BORE_SAFE_Z;
         var willEnterBore = nextZ < BORE_SAFE_Z && tableZ >= BORE_SAFE_Z;
         var isHeightSafe = nextY >= SAFE_Y_MIN && nextY <= SAFE_Y_MAX;
 
-        if (isInsideBore && nextY !== tableY) {
-          nextY = tableY;
-          alertStatus = "BLOQUEADO — risco de colisão (altura)";
+        if (isInsideBore) {
+          var clampedY = Math.min(SAFE_Y_MAX, Math.max(SAFE_Y_MIN, nextY));
+          if (clampedY !== nextY) {
+            alertStatus = "Altura limitada dentro do gantry (faixa segura: 70–90 cm)";
+          }
+          nextY = clampedY;
         }
         if (willEnterBore && !isHeightSafe) {
           nextZ = tableZ;
-          alertStatus = "ALTURA INCOMPATÍVEL para entrada no gantry";
+          alertStatus = "ALTURA INCOMPATÍVEL para entrada no gantry (ajuste para 70–90 cm)";
         }
 
         var moved = tableY !== nextY || tableZ !== nextZ;
