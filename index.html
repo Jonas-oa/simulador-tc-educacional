@@ -76,84 +76,68 @@
     <!-- Painel de operação -->
     <aside class="console" aria-label="Painel de operação do equipamento">
 
-      <div class="console__display" aria-label="Display digital">
-        <div class="display">
-          <div class="display__row">
-            <span class="display__label">STATUS</span>
-            <span class="display__value" id="display-status">AGUARDANDO</span>
-          </div>
-          <div class="display__row">
-            <span class="display__label">MESA</span>
-            <span class="display__value display__value--mono" id="display-table">000.0 mm</span>
-          </div>
-          <div class="display__row">
-            <span class="display__label">ALTURA</span>
-            <span class="display__value display__value--mono" id="display-height">80.0 cm</span>
-          </div>
-          <div class="display__row">
-            <span class="display__label">DECÚBITO</span>
-            <span class="display__value" id="display-position">DORSAL</span>
-          </div>
+      <!-- Display digital compacto (semitransparente) -->
+      <div class="display display--compact" aria-label="Display digital">
+        <div class="display__row">
+          <span class="display__label">STATUS</span>
+          <span class="display__value" id="display-status">AGUARDANDO</span>
+        </div>
+        <div class="display__row">
+          <span class="display__label">MESA</span>
+          <span class="display__value display__value--mono" id="display-table">000.0 mm</span>
+        </div>
+        <div class="display__row">
+          <span class="display__label">ALTURA</span>
+          <span class="display__value display__value--mono" id="display-height">80.0 cm</span>
+        </div>
+        <div class="display__row">
+          <span class="display__label">DECÚBITO</span>
+          <span class="display__value" id="display-position">DORSAL</span>
         </div>
       </div>
 
-      <div class="console__group" aria-label="Posicionamento do paciente">
-        <h2 class="console__group-title">Posicionamento</h2>
-        <button class="pose-toggle" id="pose-toggle" type="button" aria-expanded="false" aria-controls="pose-panel">
-          <span class="pose-toggle__icon" id="pose-current-icon" aria-hidden="true"></span>
-          <span class="pose-toggle__text" id="pose-current-text">Dorsal · Cabeça primeiro</span>
-          <span class="pose-toggle__chevron" aria-hidden="true">⌄</span>
-        </button>
+      <!-- Painel de comandos (caixa semitransparente) -->
+      <div class="panel">
+
+        <!-- Linha superior: Laser · Stop · Decúbito -->
+        <div class="panel__row panel__row--top">
+          <button class="pad-btn pad-btn--toggle" id="btn-laser" type="button" data-action="laser-toggle" aria-pressed="false">
+            <span class="pad-btn__icon">✛</span><span class="pad-btn__label">Laser</span>
+          </button>
+          <button class="pad-btn pad-btn--stop" id="btn-stop" type="button" data-action="stop">
+            <span class="pad-btn__icon">■</span><span class="pad-btn__label">Stop</span>
+          </button>
+          <button class="pad-btn" id="pose-toggle" type="button" aria-expanded="false" aria-controls="pose-panel">
+            <span class="pad-btn__icon" id="pose-current-icon" aria-hidden="true">☰</span><span class="pad-btn__label">Decúbito</span>
+          </button>
+        </div>
+
+        <!-- Centro: D-pad direcional com Iniciar no meio -->
+        <div class="dpad" aria-label="Controle de movimento da mesa">
+          <button class="dpad__btn dpad__btn--up" id="btn-table-up" type="button" data-action="table-up" aria-label="Subir mesa">▲</button>
+          <button class="dpad__btn dpad__btn--left" id="btn-table-out" type="button" data-action="table-out" aria-label="Sair do gantry">◀</button>
+          <button class="dpad__btn dpad__btn--center" id="btn-start" type="button" data-action="start" aria-label="Iniciar">▶</button>
+          <button class="dpad__btn dpad__btn--right" id="btn-table-in" type="button" data-action="table-in" aria-label="Entrar no gantry">▶</button>
+          <button class="dpad__btn dpad__btn--down" id="btn-table-down" type="button" data-action="table-down" aria-label="Descer mesa">▼</button>
+        </div>
+
+        <!-- Linha inferior: Reiniciar · Zerar -->
+        <div class="panel__row panel__row--bottom">
+          <button class="pad-btn" id="btn-reset" type="button" data-action="reset">
+            <span class="pad-btn__icon">↺</span><span class="pad-btn__label">Reiniciar</span>
+          </button>
+          <button class="pad-btn" id="btn-zero" type="button" data-action="zero">
+            <span class="pad-btn__icon">⊘</span><span class="pad-btn__label">Zerar</span>
+          </button>
+        </div>
+
+        <!-- Painel expansível de posicionamento (aparece ao tocar em Decúbito) -->
         <div class="pose-panel" id="pose-panel" hidden>
+          <span class="pose-toggle__text" id="pose-current-text" hidden>Dorsal · Cabeça primeiro</span>
           <div class="pose-panel__section-title">Decúbito</div>
           <div class="pose-grid" id="pose-decubito-grid"></div>
           <div class="pose-panel__section-title">Entrada no gantry</div>
           <div class="pose-grid pose-grid--2" id="pose-entrada-grid"></div>
-        </div>
-      </div>
-
-      <div class="console__group" aria-label="Controles de mesa">
-        <h2 class="console__group-title">Mesa de Exame</h2>
-        <div class="btn-grid">
-          <button class="btn" id="btn-table-up" type="button" data-action="table-up">
-            <span class="btn__icon">▲</span><span>Mesa +</span>
-          </button>
-          <button class="btn" id="btn-table-down" type="button" data-action="table-down">
-            <span class="btn__icon">▼</span><span>Mesa −</span>
-          </button>
-          <button class="btn" id="btn-table-in" type="button" data-action="table-in">
-            <span class="btn__icon">⇥</span><span>Entrar</span>
-          </button>
-          <button class="btn" id="btn-table-out" type="button" data-action="table-out">
-            <span class="btn__icon">⇤</span><span>Sair</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="console__group" aria-label="Laser de posicionamento">
-        <h2 class="console__group-title">Laser</h2>
-        <div class="btn-grid">
-          <button class="btn btn--toggle" id="btn-laser" type="button" data-action="laser-toggle" aria-pressed="false">
-            <span class="btn__icon">✛</span><span>Laser</span>
-          </button>
-          <button class="btn" id="btn-zero" type="button" data-action="zero">
-            <span class="btn__icon">⊘</span><span>Zerar</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="console__group console__group--danger" aria-label="Controles de emergência e simulação">
-        <h2 class="console__group-title">Simulação</h2>
-        <div class="btn-grid">
-          <button class="btn btn--primary" id="btn-start" type="button" data-action="start">
-            <span class="btn__icon">▶</span><span>Iniciar</span>
-          </button>
-          <button class="btn btn--warning" id="btn-reset" type="button" data-action="reset">
-            <span class="btn__icon">↺</span><span>Reiniciar</span>
-          </button>
-          <button class="btn btn--stop" id="btn-stop" type="button" data-action="stop">
-            <span class="btn__icon">■</span><span>STOP</span>
-          </button>
         </div>
       </div>
     </aside>
