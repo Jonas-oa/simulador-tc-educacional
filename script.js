@@ -350,31 +350,51 @@
       var tableY = 0.80; // inicia na altura do isocentro
       var tableZ = TABLE_Z_MAX; // inicia totalmente retraída (fora do gantry)
 
+      // -----------------------------------------------------------
+      // Suporte da mesa — estilo Somatom (base retangular escalonada):
+      //   • Base fixa no piso: blocos escalonados que se afinam para cima.
+      //   • Coluna-pistão móvel: sobe e desce com a mesa (movimento
+      //     vertical), como um elevador de coluna. O tampo sai em balanço
+      //     (cantilever) do topo dessa coluna.
+      // A base fica atrás do gantry (lado de embarque do paciente).
+      // -----------------------------------------------------------
       var baseGroup = new THREE.Group();
       baseGroup.position.set(0, 0, 0.9);
       scene.add(baseGroup);
 
-      var pedestal = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.28, 0.34, 0.12, 24),
-        new THREE.MeshStandardMaterial({ color: 0xb7bec5, roughness: 0.4, metalness: 0.4 })
-      );
-      pedestal.position.set(0, 0.06, 0);
-      pedestal.castShadow = true;
-      baseGroup.add(pedestal);
+      var baseMatDark = new THREE.MeshStandardMaterial({ color: 0x8b929b, roughness: 0.5, metalness: 0.25 });
+      var baseMatLight = new THREE.MeshStandardMaterial({ color: 0xd9dee3, roughness: 0.4, metalness: 0.2 });
+      var columnMat = new THREE.MeshStandardMaterial({ color: 0xeef1f4, roughness: 0.35, metalness: 0.25 });
 
-      var sleeve = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.11, 0.13, 0.35, 20),
-        new THREE.MeshStandardMaterial({ color: 0xcdd3d8, roughness: 0.3, metalness: 0.6 })
-      );
-      sleeve.position.set(0, 0.12 + 0.175, 0);
-      baseGroup.add(sleeve);
+      // --- Base fixa: três degraus retangulares (largo → estreito) ---
+      // Altura total da parte fixa mantida abaixo da altura mínima da mesa
+      // (50 cm) para que a coluna-pistão sempre tenha comprimento positivo.
+      // Degrau inferior (mais largo, apoiado no piso)
+      var baseStep1 = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.14, 0.95), baseMatDark);
+      baseStep1.position.set(0, 0.07, 0);
+      baseStep1.castShadow = true; baseStep1.receiveShadow = true;
+      baseGroup.add(baseStep1);
 
-      var shaft = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.075, 0.075, 1, 16),
-        new THREE.MeshStandardMaterial({ color: 0xe7eaee, roughness: 0.25, metalness: 0.7 })
-      );
-      shaft.castShadow = true;
-      baseGroup.add(shaft);
+      // Degrau intermediário
+      var baseStep2 = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.16, 0.8), baseMatLight);
+      baseStep2.position.set(0, 0.14 + 0.08, 0);
+      baseStep2.castShadow = true; baseStep2.receiveShadow = true;
+      baseGroup.add(baseStep2);
+
+      // Degrau superior (base da coluna, fixo)
+      var baseStep3 = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.10, 0.66), baseMatLight);
+      baseStep3.position.set(0, 0.30 + 0.05, 0);
+      baseStep3.castShadow = true; baseStep3.receiveShadow = true;
+      baseGroup.add(baseStep3);
+
+      var BASE_FIXED_TOP = 0.30 + 0.10; // topo da parte fixa (0.40 m — abaixo da mesa mínima de 0.50)
+
+      // --- Coluna-pistão móvel: sobe/desce com a mesa ---
+      // É um bloco vertical que se estende do topo da base fixa até o
+      // tampo. Seu comprimento varia com a altura da mesa (efeito pistão).
+      var column = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1, 0.6), columnMat);
+      column.castShadow = true; column.receiveShadow = true;
+      baseGroup.add(column);
 
       var tableGroup = new THREE.Group();
       scene.add(tableGroup);
@@ -445,10 +465,18 @@
 
       function applyTablePose() {
         tableGroup.position.set(0, tableY, tableZ);
-        var t = (tableY - TABLE_Y_MIN) / (TABLE_Y_MAX - TABLE_Y_MIN);
-        var shaftLen = 0.10 + t * 0.60;
-        shaft.scale.y = shaftLen;
-        shaft.position.y = 0.12 + 0.35 + shaftLen / 2 - 0.1;
+
+        // Coluna-pistão: liga o topo da base fixa (BASE_FIXED_TOP, em
+        // coordenadas do baseGroup, cuja origem está no piso) ao nível do
+        // tampo (tableY, em coordenadas do mundo). Como o baseGroup está
+        // no piso (y=0), a altura do topo da coluna deve ser tableY.
+        // A coluna vai de BASE_FIXED_TOP até tableY; seu comprimento e
+        // centro são recalculados a cada movimento (efeito pistão).
+        var columnBottom = BASE_FIXED_TOP;
+        var columnTop = tableY - 0.02; // encosta logo abaixo do tampo
+        var columnLen = Math.max(0.05, columnTop - columnBottom);
+        column.scale.y = columnLen;
+        column.position.y = columnBottom + columnLen / 2;
       }
       applyTablePose();
 
