@@ -323,10 +323,22 @@ body {
 .display--compact {
   background: rgba(6, 10, 16, 0.72);
   backdrop-filter: blur(4px);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px 16px;
-  padding: 6px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 5px 10px;
+}
+.display--compact .display__row {
+  flex-direction: row;
+  gap: 4px;
+}
+.display--compact .display__label {
+  font-size: 0.52rem;
+}
+.display--compact .display__value {
+  font-size: 0.72rem;
 }
 .display__row {
   display: flex;
