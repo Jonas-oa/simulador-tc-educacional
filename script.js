@@ -206,10 +206,10 @@
       // -----------------------------------------------------------
       // Iluminação — difusa e "clínica" (sala bem iluminada, sombras suaves)
       // -----------------------------------------------------------
-      scene.add(new THREE.AmbientLight(0xf0f4f8, 0.45));
-      scene.add(new THREE.HemisphereLight(0xffffff, 0xb9c2ca, 0.5));
+      scene.add(new THREE.AmbientLight(0xf0f4f8, 0.32));
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x8f979e, 0.42));
 
-      var key = new THREE.DirectionalLight(0xffffff, 0.65);
+      var key = new THREE.DirectionalLight(0xffffff, 0.78);
       key.position.set(2.5, 5.5, 2);
       key.castShadow = true;
       key.shadow.mapSize.set(2048, 2048);
@@ -237,17 +237,17 @@
         var cnv = document.createElement("canvas");
         cnv.width = cnv.height = size;
         var ctx = cnv.getContext("2d");
-        ctx.fillStyle = "#cdd3d8";
+        ctx.fillStyle = "#9aa2a9";
         ctx.fillRect(0, 0, size, size);
         // Manchas suaves de vinílico (ruído leve)
-        for (var i = 0; i < 900; i++) {
-          ctx.fillStyle = "rgba(255,255,255," + (Math.random() * 0.045) + ")";
+        for (var i = 0; i < 1100; i++) {
+          ctx.fillStyle = "rgba(255,255,255," + (Math.random() * 0.06) + ")";
           ctx.fillRect(Math.random() * size, Math.random() * size, 2.5, 2.5);
-          ctx.fillStyle = "rgba(90,100,110," + (Math.random() * 0.05) + ")";
+          ctx.fillStyle = "rgba(60,68,76," + (Math.random() * 0.06) + ")";
           ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
         }
-        // Juntas de placas (grade sutil)
-        ctx.strokeStyle = "rgba(120,130,140,0.35)";
+        // Juntas de placas (grade bem sutil)
+        ctx.strokeStyle = "rgba(80,88,96,0.25)";
         ctx.lineWidth = 1;
         var cells = 4; // 4x4 placas por tile
         for (var g = 0; g <= cells; g++) {
@@ -619,13 +619,52 @@
       // mesa até o tampo ficar em ~66 cm (comportamento realista).
       var patient = new THREE.Group();
       var skin = new THREE.MeshStandardMaterial({ color: 0xe3b993, roughness: 0.7 });
-      var scrub = new THREE.MeshStandardMaterial({ color: 0xaebfd4, roughness: 0.85 });
+
+      // Avental hospitalar estampado (azul-claro com padrão de pontinhos),
+      // gerado via canvas — como o avental da foto de referência.
+      function gownTexture() {
+        var cnv = document.createElement("canvas");
+        cnv.width = cnv.height = 128;
+        var ctx = cnv.getContext("2d");
+        ctx.fillStyle = "#dfe6f2";
+        ctx.fillRect(0, 0, 128, 128);
+        ctx.fillStyle = "#7f93b8";
+        for (var y = 0; y < 8; y++) {
+          for (var x = 0; x < 8; x++) {
+            var ox = (y % 2) * 8;
+            ctx.beginPath();
+            ctx.arc(x * 16 + 8 + ox, y * 16 + 8, 1.7, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        var tex = new THREE.CanvasTexture(cnv);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(3, 3);
+        return tex;
+      }
+      var scrub = new THREE.MeshStandardMaterial({ map: gownTexture(), roughness: 0.9 });
+      var hairMat = new THREE.MeshStandardMaterial({ color: 0x2e2620, roughness: 0.85 });
+      var sockMat = new THREE.MeshStandardMaterial({ color: 0xf2f2f0, roughness: 0.8 });
 
       var TORSO_R = 0.12; // raio do torso — espessura ~24 cm
 
       var head = new THREE.Mesh(new THREE.SphereGeometry(0.10, 20, 16), skin);
       head.position.set(0, TORSO_R, 0.75);
       patient.add(head);
+
+      // Cabelo escuro: calota cobrindo o topo/trás da cabeça + coque.
+      // No corpo montado (deitado), o "topo da cabeça" aponta para +Z e a
+      // "nuca" para -Y... na prática, cobrimos o hemisfério traseiro.
+      var hairCap = new THREE.Mesh(
+        new THREE.SphereGeometry(0.104, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.55),
+        hairMat
+      );
+      hairCap.position.copy(head.position);
+      hairCap.rotation.x = -Math.PI / 2.4; // calota voltada para cima/trás
+      patient.add(hairCap);
+      var hairBun = new THREE.Mesh(new THREE.SphereGeometry(0.038, 12, 10), hairMat);
+      hairBun.position.set(0, TORSO_R - 0.02, 0.75 + 0.095);
+      patient.add(hairBun);
 
       var torso = new THREE.Mesh(new THREE.CylinderGeometry(TORSO_R, TORSO_R + 0.02, 0.55, 16), scrub);
       torso.rotation.x = Math.PI / 2;
@@ -638,15 +677,18 @@
         m.position.set(x, y, z);
         return m;
       }
-      // Braços — ao lado do tronco, mesma região em Z.
-      patient.add(limb(0.04, 0.5, -0.15, TORSO_R * 0.75, 0.36, scrub));
-      patient.add(limb(0.04, 0.5, 0.15, TORSO_R * 0.75, 0.36, scrub));
-      // Coxas — entre o quadril e os joelhos.
+      // Braços — de pele (o avental tem manga curta).
+      patient.add(limb(0.04, 0.5, -0.15, TORSO_R * 0.75, 0.36, skin));
+      patient.add(limb(0.04, 0.5, 0.15, TORSO_R * 0.75, 0.36, skin));
+      // Coxas — cobertas pelo avental (estampado).
       patient.add(limb(0.05, 0.45, -0.08, TORSO_R * 0.8, -0.15, scrub));
       patient.add(limb(0.05, 0.45, 0.08, TORSO_R * 0.8, -0.15, scrub));
-      // Pernas/pés — do joelho aos pés.
-      patient.add(limb(0.04, 0.4, -0.08, TORSO_R * 0.8, -0.6, skin));
-      patient.add(limb(0.04, 0.4, 0.08, TORSO_R * 0.8, -0.6, skin));
+      // Pernas — de pele.
+      patient.add(limb(0.04, 0.32, -0.08, TORSO_R * 0.8, -0.56, skin));
+      patient.add(limb(0.04, 0.32, 0.08, TORSO_R * 0.8, -0.56, skin));
+      // Meias brancas nos pés (pontas das pernas).
+      patient.add(limb(0.042, 0.10, -0.08, TORSO_R * 0.8, -0.76, sockMat));
+      patient.add(limb(0.042, 0.10, 0.08, TORSO_R * 0.8, -0.76, sockMat));
       // O paciente repousa sobre o topo do tampo (tampo tem 0.04 de
       // espessura, então topo em +0.02 em relação ao centro da mesa).
       // As costas ficam nesse plano; o corpo se estende para cima.
