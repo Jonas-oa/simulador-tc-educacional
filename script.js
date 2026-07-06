@@ -482,12 +482,20 @@
       patient.position.set(0, 0.02, 0);
 
       var patientPose = new THREE.Group();
-      patientPose.add(patient);
       tableGroup.add(patientPose);
 
+      // Grupo "em pé": posiciona o paciente de pé ao lado da mesa (estado
+      // inicial "aguardando"). Fica ao lado do aparelho, no piso. Quando um
+      // decúbito é selecionado, o corpo é transferido para a mesa.
+      var patientStanding = new THREE.Group();
+      // Ao lado da mesa (eixo X negativo = lado de embarque), no piso.
+      patientStanding.position.set(-0.95, 0, 0.9);
+      scene.add(patientStanding);
+
+      // Estado de posicionamento: enquanto null, o paciente está em pé.
+      var patientPlaced = false;
+
       // ----- Posicionamento do paciente (decúbito + entrada) -----
-      // Decúbito: rotação em Z (roll). Entrada: rotação em Y (yaw).
-      // Estado atual (índices):
       var DECUBITOS = ["dorsal", "ventral", "lateral-d", "lateral-e"];
       var ENTRADAS = ["cabeca", "pes"];
       var currentDecubito = "dorsal";
@@ -512,27 +520,49 @@
 
       var displayPositionEl = document.getElementById("display-position");
 
+      // Coloca o paciente EM PÉ ao lado da mesa (estado "aguardando").
+      // O corpo é montado deitado (cabeça em +Z, pés em -Z). Para ficar de
+      // pé, rotacionamos -90° em X (o eixo Z do corpo vira a vertical) e o
+      // elevamos até os pés tocarem o piso.
+      function standPatient() {
+        patientPlaced = false;
+        patientStanding.add(patient);
+        patient.rotation.set(-Math.PI / 2, 0, 0);
+        patient.position.set(0, 0.85, 0); // eleva para os pés tocarem o chão
+        if (displayPositionEl) displayPositionEl.textContent = "AGUARDANDO";
+      }
+
       function applyPatientPose() {
-        // Roll pelo decúbito. Como o corpo está apoiado com o centro do
-        // torso ~TORSO_R acima do tampo, rotacionar em torno da origem do
-        // patientPose (nível do tampo) mantém o corpo apoiado.
+        if (!patientPlaced) return; // em pé: nada a rotacionar na mesa
+        // Garante que o corpo está na mesa (reparentado ao patientPose).
+        if (patient.parent !== patientPose) {
+          patientPose.add(patient);
+          patient.rotation.set(0, 0, 0);
+          patient.position.set(0, 0.02, 0);
+        }
+        // Roll pelo decúbito; yaw pela entrada (pés primeiro = 180°).
         var roll = DECUBITO_ROLL[currentDecubito] || 0;
-        // Yaw pela entrada: pés primeiro gira o corpo 180° em torno do Y,
-        // invertendo cabeça/pés na mesa.
         var yaw = (currentEntrada === "pes") ? Math.PI : 0;
         patientPose.rotation.set(0, yaw, roll);
-        // Ajuste de altura: em decúbito lateral o corpo é mais "alto"
-        // (ombro a ombro), então elevamos levemente para as costas/ombro
-        // apoiarem no tampo em vez de afundar.
+        // Em decúbito lateral o corpo é mais "alto" (ombro a ombro); eleva
+        // levemente para apoiar no tampo em vez de afundar.
         var isLateral = (currentDecubito === "lateral-d" || currentDecubito === "lateral-e");
         patientPose.position.y = isLateral ? TORSO_R : 0;
 
-        // Atualiza o texto do display.
         if (displayPositionEl) {
           displayPositionEl.textContent = decubitoLabel(currentDecubito) + " / " + entradaLabel(currentEntrada);
         }
       }
-      applyPatientPose();
+
+      // Coloca o paciente NA MESA (transição a partir do estado em pé ou
+      // troca de decúbito quando já deitado).
+      function placePatient() {
+        patientPlaced = true;
+        applyPatientPose();
+      }
+
+      // Estado inicial: paciente em pé ao lado do aparelho.
+      standPatient();
 
       function applyTablePose() {
         tableGroup.position.set(0, tableY, tableZ);
@@ -811,13 +841,13 @@
           setLaser(false);
           currentDecubito = "dorsal";
           currentEntrada = "cabeca";
-          applyPatientPose();
+          standPatient();
           if (typeof updatePoseToggleFace === "function") updatePoseToggleFace();
           if (typeof renderPoseOptions === "function") renderPoseOptions();
           simulationRunning = false;
           var statusEl = document.getElementById("display-status");
           if (statusEl) statusEl.textContent = "AGUARDANDO";
-          showMessage("Simulador reiniciado para a posição inicial.", "info");
+          showMessage("Simulador reiniciado. Paciente aguardando ao lado do equipamento.", "info");
         });
       }
 
@@ -896,7 +926,11 @@
       function updatePoseToggleFace() {
         if (poseCurrentIcon) poseCurrentIcon.innerHTML = svgDecubito(currentDecubito);
         if (poseCurrentText) {
-          poseCurrentText.textContent = DECUBITO_FULL[currentDecubito] + " · " + ENTRADA_FULL[currentEntrada];
+          if (!patientPlaced) {
+            poseCurrentText.textContent = "Aguardando — selecione a posição";
+          } else {
+            poseCurrentText.textContent = DECUBITO_FULL[currentDecubito] + " · " + ENTRADA_FULL[currentEntrada];
+          }
         }
       }
 
@@ -916,10 +950,10 @@
           decubitoGrid.innerHTML = "";
           DECUBITOS.forEach(function (d) {
             decubitoGrid.appendChild(buildPoseOption(
-              d, DECUBITO_FULL[d], svgDecubito(d), d === currentDecubito,
+              d, DECUBITO_FULL[d], svgDecubito(d), patientPlaced && d === currentDecubito,
               function () {
                 currentDecubito = d;
-                applyPatientPose();
+                placePatient();
                 updatePoseToggleFace();
                 renderPoseOptions();
                 showMessage("Decúbito: " + DECUBITO_FULL[d] + ".", "info");
@@ -931,10 +965,10 @@
           entradaGrid.innerHTML = "";
           ENTRADAS.forEach(function (e) {
             entradaGrid.appendChild(buildPoseOption(
-              e, ENTRADA_FULL[e], svgEntrada(e), e === currentEntrada,
+              e, ENTRADA_FULL[e], svgEntrada(e), patientPlaced && e === currentEntrada,
               function () {
                 currentEntrada = e;
-                applyPatientPose();
+                placePatient();
                 updatePoseToggleFace();
                 renderPoseOptions();
                 showMessage("Entrada no gantry: " + ENTRADA_FULL[e] + ".", "info");
