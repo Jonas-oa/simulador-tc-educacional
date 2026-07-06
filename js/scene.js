@@ -11,7 +11,7 @@
  * animações de movimento, física e interatividade.
  */
 
-import * as THREE from "three";
+import * as THREE from "./vendor/three/three.module.min.js";
 import { OrbitControls } from "./vendor/three/examples/jsm/controls/OrbitControls.js";
 
 // Paleta usada nos materiais 3D, alinhada aos tokens de cor do CSS
