@@ -276,6 +276,7 @@
 
       var GW = 2.0, GH = 1.9, GDEPTH = 0.85, BORE_R = 0.40; // bore de 80cm de diâmetro
       var ISO_Y = 0.80; // altura do isocentro
+      var GANTRY_FACE_Z = -0.6 + GDEPTH / 2 + 0.005; // Z do plano de entrada (face do gantry / lasers)
 
       var gShape = new THREE.Shape();
       gShape.moveTo(-GW / 2, -GH / 2);
@@ -396,6 +397,20 @@
       column.castShadow = true; column.receiveShadow = true;
       baseGroup.add(column);
 
+      // --- Berço/trilho de suporte sob o tampo ---
+      // Estrutura horizontal logo abaixo do tampo, presa ao topo da
+      // coluna (parte do suporte, NÃO da mesa). Estende-se para frente
+      // (em direção ao gantry) preenchendo o vão que aparece quando o
+      // tampo avança para dentro do bore. Sua posição vertical acompanha
+      // a altura da mesa; sua posição/comprimento em Z acompanham o
+      // avanço do tampo, sem alterar a geometria da mesa/paciente/laser.
+      var carriage = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.12, 1.0),
+        new THREE.MeshStandardMaterial({ color: 0xc4cad1, roughness: 0.4, metalness: 0.3 })
+      );
+      carriage.castShadow = true; carriage.receiveShadow = true;
+      baseGroup.add(carriage);
+
       var tableGroup = new THREE.Group();
       scene.add(tableGroup);
 
@@ -477,6 +492,20 @@
         var columnLen = Math.max(0.05, columnTop - columnBottom);
         column.scale.y = columnLen;
         column.position.y = columnBottom + columnLen / 2;
+
+        // Berço de suporte: fica logo abaixo do tampo (acompanha a altura)
+        // e se estende de cima da coluna até a face do gantry, preenchendo
+        // o vão conforme o tampo avança. Coordenadas em relação ao
+        // baseGroup (origem em Z=0.9 no mundo).
+        //   - Face do gantry no mundo ≈ GANTRY_FACE_Z (-0.20). Em coords
+        //     do baseGroup: GANTRY_FACE_Z - 0.9.
+        //   - A frente do berço deve alcançar a face do gantry; a traseira
+        //     fica sobre a coluna (Z≈0 no baseGroup).
+        var carriageBackZ = 0.0;                       // sobre a coluna
+        var carriageFrontZ = (GANTRY_FACE_Z - 0.9);    // até a face do gantry
+        var carriageLen = Math.max(0.3, carriageBackZ - carriageFrontZ);
+        carriage.scale.z = carriageLen / 1.0; // geometria base tem 1.0 de profundidade
+        carriage.position.set(0, tableY - 0.10, carriageBackZ - carriageLen / 2);
       }
       applyTablePose();
 
@@ -497,7 +526,6 @@
       // Cobertura longitudinal de cada feixe: ~20 cm para fora do gantry
       // e ~50 cm para dentro (total ~70 cm em Z).
       // -----------------------------------------------------------
-      var GANTRY_FACE_Z = -0.6 + GDEPTH / 2 + 0.005; // Z do plano dos lasers (face de entrada)
       var LASER_COLOR = 0xff2222;
 
       // Extensão longitudinal dos feixes (em Z, relativo à face do gantry).
