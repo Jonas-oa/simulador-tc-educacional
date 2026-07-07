@@ -53,17 +53,19 @@
       <canvas id="scene-canvas" aria-hidden="true"></canvas>
 
       <div class="viewport__overlay">
-        <div class="viewport__hud" id="hud-position">
-          <span class="hud__label">POSIÇÃO DA MESA</span>
-          <span class="hud__value" id="hud-table-position">000.0 <small>mm</small></span>
-        </div>
-        <div class="viewport__hud" id="hud-speed">
-          <span class="hud__label">VELOCIDADE</span>
-          <span class="hud__value" id="hud-table-speed">0.0 <small>mm/s</small></span>
-        </div>
-        <div class="viewport__hud" id="hud-height">
-          <span class="hud__label">ALTURA DA MESA</span>
-          <span class="hud__value" id="hud-table-height">80.0 <small>cm</small></span>
+        <div class="viewport__hud viewport__hud--unified">
+          <div class="hud__row">
+            <span class="hud__label">MESA</span>
+            <span class="hud__value" id="hud-table-position">000.0 <small>mm</small></span>
+          </div>
+          <div class="hud__row">
+            <span class="hud__label">VELOC.</span>
+            <span class="hud__value" id="hud-table-speed">0.0 <small>mm/s</small></span>
+          </div>
+          <div class="hud__row">
+            <span class="hud__label">ALTURA</span>
+            <span class="hud__value" id="hud-table-height">80.0 <small>cm</small></span>
+          </div>
         </div>
       </div>
 

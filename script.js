@@ -1400,6 +1400,13 @@
           poseToggle.setAttribute("aria-expanded", String(!isOpen));
           posePanel.hidden = isOpen;
         });
+        // Fecha o popover ao tocar fora dele (comportamento de dropdown).
+        document.addEventListener("pointerdown", function (e) {
+          if (posePanel.hidden) return;
+          if (posePanel.contains(e.target) || poseToggle.contains(e.target)) return;
+          posePanel.hidden = true;
+          poseToggle.setAttribute("aria-expanded", "false");
+        });
       }
       updatePoseToggleFace();
       renderPoseOptions();
