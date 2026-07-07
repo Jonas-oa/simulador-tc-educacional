@@ -1055,6 +1055,48 @@
       }
 
       var _p = new THREE.Vector3();
+      var _sideDir = new THREE.Vector3();
+      var _sideTarget = new THREE.Vector3();
+
+      // Projeta um ponto LATERAL: raio HORIZONTAL na altura do isocentro
+      // (plano coronal, y = ISO_Y), partindo da origem em 3h/9h em direção
+      // ao plano central (x=0). A linha resultante pinta o FLANCO do
+      // paciente na altura do isocentro — exatamente como o laser coronal
+      // do equipamento real (serve para centralizar a espessura do corpo
+      // no isocentro). Fallback: se o raio não atinge nada, o ponto segue
+      // até o plano central (x=0).
+      function projectSidePoint(origin, z, out) {
+        _sideTarget.set(0, ISO_Y, z);
+        _sideDir.copy(_sideTarget).sub(origin).normalize();
+        laserRaycaster.set(origin, _sideDir);
+        var hits = laserRaycaster.intersectObjects(laserTargets, true);
+        if (hits.length > 0) {
+          out.copy(hits[0].point);
+          // "levantamento" lateral (na direção da origem) p/ evitar z-fighting
+          out.x += (origin.x > 0 ? 1 : -1) * LASER_LIFT;
+        } else {
+          out.copy(_sideTarget);
+        }
+        return out;
+      }
+
+      // Atualiza a geometria de uma linha lateral (varre em Z, projeção
+      // horizontal no plano do isocentro).
+      function updateSideLine(line, origin) {
+        var pos = line.geometry.attributes.position.array;
+        var zStart = GANTRY_FACE_Z + LASER_LONG_OUT;
+        var zEnd = GANTRY_FACE_Z - LASER_LONG_IN;
+        for (var i = 0; i <= LASER_SEGMENTS; i++) {
+          var t = i / LASER_SEGMENTS;
+          var z = zStart + (zEnd - zStart) * t;
+          projectSidePoint(origin, z, _p);
+          pos[i * 3] = _p.x;
+          pos[i * 3 + 1] = _p.y;
+          pos[i * 3 + 2] = _p.z;
+        }
+        line.geometry.attributes.position.needsUpdate = true;
+        line.geometry.computeBoundingSphere();
+      }
 
       // Atualiza a geometria de uma linha longitudinal (varre em Z).
       function updateLongitudinalLine(line, origin, xFixed, yFallback) {
@@ -1091,9 +1133,13 @@
       function updateLasers() {
         if (!laserGroup.visible) return;
         var yFallback = tableY + 0.02; // topo do tampo como piso do laser
+        // Sagital central (12h): plano vertical x=0, pinta o topo do corpo.
         updateLongitudinalLine(longCentralLine, laserOriginTop, 0, yFallback);
-        updateLongitudinalLine(longRightLine, laserOriginRight, 0.12, yFallback);
-        updateLongitudinalLine(longLeftLine, laserOriginLeft, -0.12, yFallback);
+        // Coronais laterais (3h/9h): plano HORIZONTAL na altura do
+        // isocentro, pintam os flancos do corpo.
+        updateSideLine(longRightLine, laserOriginRight);
+        updateSideLine(longLeftLine, laserOriginLeft);
+        // Axial/transversal (12h): plano vertical no Z da face do gantry.
         updateTransversalLine(transversalLine, laserOriginTop, GANTRY_FACE_Z, yFallback);
       }
 
