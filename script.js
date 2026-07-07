@@ -689,6 +689,68 @@
       // Meias brancas nos pés (pontas das pernas).
       patient.add(limb(0.042, 0.10, -0.08, TORSO_R * 0.8, -0.76, sockMat));
       patient.add(limb(0.042, 0.10, 0.08, TORSO_R * 0.8, -0.76, sockMat));
+
+      // -----------------------------------------------------------
+      // Modelo 3D realista da paciente (Quaternius "Modular Women -
+      // Casual", licença CC0 — uso comercial livre; ver models/LICENSE.md).
+      // As primitivas acima ficam como FALLBACK: aparecem de imediato e
+      // permanecem caso o carregamento do GLB falhe (ex: offline antes
+      // do cache). Quando o modelo carrega, as primitivas são ocultadas
+      // e o modelo entra no MESMO grupo `patient` — preservando toda a
+      // lógica de pose/decúbito/laser sem alterações.
+      // -----------------------------------------------------------
+      var primitiveParts = patient.children.slice(); // tudo que é fallback
+      if (typeof THREE.GLTFLoader === "function") {
+        var gltfLoader = new THREE.GLTFLoader();
+        gltfLoader.load(
+          "models/patient.glb",
+          function (gltf) {
+            try {
+              var model = gltf.scene;
+
+              // Sombras em todas as malhas.
+              model.traverse(function (o) {
+                if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+              });
+
+              // Escala: normaliza a altura do modelo para ~1.68 m.
+              var bbox = new THREE.Box3().setFromObject(model);
+              var size = new THREE.Vector3();
+              bbox.getSize(size);
+              var height = Math.max(size.x, size.y, size.z); // maior eixo = altura em pé
+              var scale = 1.68 / height;
+              model.scale.setScalar(scale);
+
+              // Orientação: o modelo vem EM PÉ (altura no eixo Y, olhando
+              // +Z). Nossa convenção do corpo é DEITADO em decúbito dorsal:
+              // cabeça para +Z, rosto para cima (+Y). A rotação que faz
+              // essa conversão é: -90° em X (deita de costas) seguida de
+              // 180° em Y (cabeça aponta para +Z).
+              var wrapper = new THREE.Group();
+              wrapper.add(model);
+              // Recentraliza o modelo no wrapper (pés na origem).
+              bbox.setFromObject(model);
+              model.position.y -= bbox.min.y; // pés em y=0 do wrapper
+              wrapper.rotation.set(-Math.PI / 2, Math.PI, 0);
+              // Após deitar: o corpo se estende de z=0 (pés) a z=+1.68
+              // (cabeça). Nossa convenção tem os pés em ~-0.8 e cabeça em
+              // ~+0.85, então recuamos o wrapper.
+              wrapper.position.set(0, 0, -0.8);
+
+              // Oculta as primitivas e adiciona o modelo.
+              primitiveParts.forEach(function (p) { p.visible = false; });
+              patient.add(wrapper);
+              showMessage("Modelo 3D da paciente carregado.", "info");
+            } catch (err) {
+              console.error("Erro ao preparar o modelo da paciente:", err);
+            }
+          },
+          undefined,
+          function (err) {
+            console.warn("Falha ao carregar models/patient.glb — usando figura simplificada.", err);
+          }
+        );
+      }
       // O paciente repousa sobre o topo do tampo (tampo tem 0.04 de
       // espessura, então topo em +0.02 em relação ao centro da mesa).
       // As costas ficam nesse plano; o corpo se estende para cima.
