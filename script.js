@@ -230,34 +230,25 @@
       // -----------------------------------------------------------
       var ROOM_W = 6.2, ROOM_D = 6.2, ROOM_H = 3.2;
 
-      // Piso vinílico cinza claro: cor base uniforme com juntas de placa
-      // bem sutis (linhas finas), sem contraste de tabuleiro.
+      // Piso vinílico granulado (speckled) como nas salas reais: base
+      // cinza-azulada com granulado fino multicolorido, sem juntas.
       function vinylFloorTexture() {
         var size = 512;
         var cnv = document.createElement("canvas");
         cnv.width = cnv.height = size;
         var ctx = cnv.getContext("2d");
-        ctx.fillStyle = "#9aa2a9";
+        ctx.fillStyle = "#aeb6bd";
         ctx.fillRect(0, 0, size, size);
-        // Manchas suaves de vinílico (ruído leve)
-        for (var i = 0; i < 1100; i++) {
-          ctx.fillStyle = "rgba(255,255,255," + (Math.random() * 0.06) + ")";
-          ctx.fillRect(Math.random() * size, Math.random() * size, 2.5, 2.5);
-          ctx.fillStyle = "rgba(60,68,76," + (Math.random() * 0.06) + ")";
-          ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
-        }
-        // Juntas de placas (grade bem sutil)
-        ctx.strokeStyle = "rgba(80,88,96,0.25)";
-        ctx.lineWidth = 1;
-        var cells = 4; // 4x4 placas por tile
-        for (var g = 0; g <= cells; g++) {
-          var p = (g / cells) * size;
-          ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, size); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(size, p); ctx.stroke();
+        // Granulado fino denso (speckle)
+        var speckles = ["rgba(255,255,255,0.5)", "rgba(140,150,160,0.5)", "rgba(90,100,112,0.4)", "rgba(190,198,205,0.5)"];
+        for (var i = 0; i < 9000; i++) {
+          ctx.fillStyle = speckles[i % speckles.length];
+          var s = Math.random() < 0.85 ? 1 : 2;
+          ctx.fillRect(Math.random() * size, Math.random() * size, s, s);
         }
         var tex = new THREE.CanvasTexture(cnv);
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(3, 3); // placas de ~50 cm
+        tex.repeat.set(4, 4);
         return tex;
       }
 
@@ -350,6 +341,128 @@
       scene.add(ceilingLight(1.5, -1.5));
       scene.add(ceilingLight(-1.5, 1.5));
       scene.add(ceilingLight(1.5, 1.5));
+
+      // -----------------------------------------------------------
+      // Detalhes da sala (fiéis à foto de referência)
+      // -----------------------------------------------------------
+      // Faixa de proteção (bump rail) cinza nas paredes, a ~90 cm.
+      var railMat = new THREE.MeshStandardMaterial({ color: 0xaab3ba, roughness: 0.55 });
+      function bumpRail(w, x, z, rotY) {
+        var r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.10, 0.02), railMat);
+        r.position.set(x, 0.92, z);
+        r.rotation.y = rotY;
+        return r;
+      }
+      scene.add(bumpRail(ROOM_W, 0, -ROOM_D / 2 + 0.012, 0));
+      scene.add(bumpRail(ROOM_D, ROOM_W / 2 - 0.012, 0, Math.PI / 2));
+
+      // Cartaz "Patient Safety" na parede esquerda (entre janela e porta).
+      var posterCnv = document.createElement("canvas");
+      posterCnv.width = 128; posterCnv.height = 170;
+      var pctx = posterCnv.getContext("2d");
+      pctx.fillStyle = "#ffffff"; pctx.fillRect(0, 0, 128, 170);
+      pctx.fillStyle = "#2a5fa8"; pctx.fillRect(0, 0, 128, 26);
+      pctx.fillStyle = "#ffffff"; pctx.font = "bold 11px sans-serif";
+      pctx.fillText("PATIENT SAFETY", 14, 17);
+      pctx.fillStyle = "#8a949e";
+      for (var li = 0; li < 9; li++) pctx.fillRect(10, 38 + li * 13, 106 - (li % 3) * 18, 4);
+      var posterTex = new THREE.CanvasTexture(posterCnv);
+      var poster = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.42, 0.56),
+        new THREE.MeshStandardMaterial({ map: posterTex, roughness: 0.85 })
+      );
+      poster.rotation.y = Math.PI / 2;
+      poster.position.set(-ROOM_W / 2 + 0.015, 1.72, -0.15);
+      scene.add(poster);
+
+      // Painel de parede com botões de emergência (vermelho/verde).
+      var wallPanel = new THREE.Group();
+      var panelPlate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.16, 0.30, 0.02),
+        new THREE.MeshStandardMaterial({ color: 0xc9d0d6, roughness: 0.4, metalness: 0.5 })
+      );
+      wallPanel.add(panelPlate);
+      var redBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.02, 16),
+        new THREE.MeshStandardMaterial({ color: 0xd6362e, emissive: 0x5a0f0c, emissiveIntensity: 0.4 }));
+      redBtn.rotation.x = Math.PI / 2;
+      redBtn.position.set(0, 0.07, 0.015);
+      wallPanel.add(redBtn);
+      var greenBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.02, 16),
+        new THREE.MeshStandardMaterial({ color: 0x2fae4e, emissive: 0x0d3a19, emissiveIntensity: 0.4 }));
+      greenBtn.rotation.x = Math.PI / 2;
+      greenBtn.position.set(0, -0.03, 0.015);
+      wallPanel.add(greenBtn);
+      wallPanel.rotation.y = Math.PI / 2;
+      wallPanel.position.set(-ROOM_W / 2 + 0.02, 1.35, 0.35);
+      scene.add(wallPanel);
+
+      // Monitor pequeno ao lado da janela de comando.
+      var monitorScreen = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.42, 0.26),
+        new THREE.MeshStandardMaterial({ color: 0x3a7bd5, emissive: 0x1c3f73, emissiveIntensity: 0.7, roughness: 0.3 })
+      );
+      monitorScreen.rotation.y = Math.PI / 2;
+      monitorScreen.position.set(-ROOM_W / 2 + 0.03, 1.25, 2.15);
+      scene.add(monitorScreen);
+      var monitorFrame = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.48, 0.32),
+        new THREE.MeshStandardMaterial({ color: 0x2a2f34, roughness: 0.5 })
+      );
+      monitorFrame.rotation.y = Math.PI / 2;
+      monitorFrame.position.set(-ROOM_W / 2 + 0.025, 1.25, 2.15);
+      scene.add(monitorFrame);
+
+      // Carrinho inox com gavetas azuis/brancas (canto direito, como na foto).
+      var cart = new THREE.Group();
+      var cartBody = new THREE.Mesh(
+        new THREE.BoxGeometry(0.55, 0.75, 0.45),
+        new THREE.MeshStandardMaterial({ color: 0xdfe4e8, roughness: 0.3, metalness: 0.6 })
+      );
+      cartBody.position.y = 0.45;
+      cartBody.castShadow = true;
+      cart.add(cartBody);
+      var drawerBlue = new THREE.MeshStandardMaterial({ color: 0x2e6bc4, roughness: 0.5 });
+      var drawerWhite = new THREE.MeshStandardMaterial({ color: 0xf2f4f6, roughness: 0.5 });
+      for (var dr = 0; dr < 3; dr++) {
+        var d1 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 0.02), drawerBlue);
+        d1.position.set(-0.13, 0.68 - dr * 0.20, 0.235);
+        cart.add(d1);
+        var d2 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 0.02), drawerWhite);
+        d2.position.set(0.13, 0.68 - dr * 0.20, 0.235);
+        cart.add(d2);
+      }
+      // Rodinhas
+      for (var wx = -1; wx <= 1; wx += 2) {
+        for (var wz = -1; wz <= 1; wz += 2) {
+          var wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 12),
+            new THREE.MeshStandardMaterial({ color: 0x3a3f44, roughness: 0.6 }));
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(wx * 0.22, 0.04, wz * 0.16);
+          cart.add(wheel);
+        }
+      }
+      cart.position.set(ROOM_W / 2 - 0.55, 0, -2.2);
+      cart.rotation.y = -Math.PI / 2;
+      scene.add(cart);
+
+      // Cesto de roupa hospitalar azul (hamper) ao lado do carrinho.
+      var hamper = new THREE.Group();
+      var hamperBag = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24, 0.20, 0.62, 12),
+        new THREE.MeshStandardMaterial({ color: 0x3f7fd4, roughness: 0.9 })
+      );
+      hamperBag.position.y = 0.45;
+      hamperBag.castShadow = true;
+      hamper.add(hamperBag);
+      var hamperRim = new THREE.Mesh(
+        new THREE.TorusGeometry(0.24, 0.015, 8, 24),
+        new THREE.MeshStandardMaterial({ color: 0xb9c1c8, roughness: 0.4, metalness: 0.6 })
+      );
+      hamperRim.rotation.x = Math.PI / 2;
+      hamperRim.position.y = 0.76;
+      hamper.add(hamperRim);
+      hamper.position.set(ROOM_W / 2 - 0.4, 0, -1.35);
+      scene.add(hamper);
 
       // -----------------------------------------------------------
       // Gantry — modelo realista inspirado no Somatom Definition Edge:
@@ -648,109 +761,82 @@
 
       var TORSO_R = 0.12; // raio do torso — espessura ~24 cm
 
-      var head = new THREE.Mesh(new THREE.SphereGeometry(0.10, 20, 16), skin);
-      head.position.set(0, TORSO_R, 0.75);
+      // Cabeça com pescoço.
+      var head = new THREE.Mesh(new THREE.SphereGeometry(0.095, 20, 16), skin);
+      head.position.set(0, TORSO_R, 0.76);
       patient.add(head);
+      var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.09, 12), skin);
+      neck.rotation.x = Math.PI / 2;
+      neck.position.set(0, TORSO_R - 0.01, 0.67);
+      patient.add(neck);
 
-      // Cabelo escuro: calota cobrindo o topo/trás da cabeça + coque.
-      // No corpo montado (deitado), o "topo da cabeça" aponta para +Z e a
-      // "nuca" para -Y... na prática, cobrimos o hemisfério traseiro.
+      // Cabelo escuro: calota + coque (como a paciente da referência).
       var hairCap = new THREE.Mesh(
-        new THREE.SphereGeometry(0.104, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.55),
+        new THREE.SphereGeometry(0.099, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.55),
         hairMat
       );
       hairCap.position.copy(head.position);
-      hairCap.rotation.x = -Math.PI / 2.4; // calota voltada para cima/trás
+      hairCap.rotation.x = -Math.PI / 2.4;
       patient.add(hairCap);
-      var hairBun = new THREE.Mesh(new THREE.SphereGeometry(0.038, 12, 10), hairMat);
-      hairBun.position.set(0, TORSO_R - 0.02, 0.75 + 0.095);
+      var hairBun = new THREE.Mesh(new THREE.SphereGeometry(0.036, 12, 10), hairMat);
+      hairBun.position.set(0, TORSO_R - 0.015, 0.76 + 0.09);
       patient.add(hairBun);
 
-      var torso = new THREE.Mesh(new THREE.CylinderGeometry(TORSO_R, TORSO_R + 0.02, 0.55, 16), scrub);
-      torso.rotation.x = Math.PI / 2;
-      torso.position.set(0, TORSO_R, 0.36);
-      patient.add(torso);
+      // Ombros arredondados (esferas nas pontas do tronco superior).
+      var shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), scrub);
+      shoulderL.position.set(-0.135, TORSO_R * 0.9, 0.58);
+      patient.add(shoulderL);
+      var shoulderR = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), scrub);
+      shoulderR.position.set(0.135, TORSO_R * 0.9, 0.58);
+      patient.add(shoulderR);
 
-      function limb(r, l, x, y, z, mat) {
-        var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.85, l, 12), mat);
+      // Tronco superior (tórax) — levemente elíptico (mais largo que alto).
+      var chest = new THREE.Mesh(new THREE.CylinderGeometry(TORSO_R, TORSO_R + 0.015, 0.34, 16), scrub);
+      chest.scale.x = 1.35; // ombros mais largos que a espessura
+      chest.rotation.x = Math.PI / 2;
+      chest.position.set(0, TORSO_R * 0.92, 0.44);
+      patient.add(chest);
+
+      // Avental com caimento (flare): tronco inferior alargando até os
+      // joelhos, como o avental da foto (cone truncado).
+      var gownSkirt = new THREE.Mesh(new THREE.CylinderGeometry(TORSO_R + 0.015, TORSO_R + 0.055, 0.5, 16), scrub);
+      gownSkirt.scale.x = 1.3;
+      gownSkirt.rotation.x = Math.PI / 2;
+      gownSkirt.position.set(0, TORSO_R * 0.88, 0.02);
+      patient.add(gownSkirt);
+
+      function limb(r, l, x, y, z, mat, r2) {
+        var m = new THREE.Mesh(new THREE.CylinderGeometry(r, (r2 !== undefined ? r2 : r * 0.85), l, 12), mat);
         m.rotation.x = Math.PI / 2;
         m.position.set(x, y, z);
         return m;
       }
-      // Braços — de pele (o avental tem manga curta).
-      patient.add(limb(0.04, 0.5, -0.15, TORSO_R * 0.75, 0.36, skin));
-      patient.add(limb(0.04, 0.5, 0.15, TORSO_R * 0.75, 0.36, skin));
-      // Coxas — cobertas pelo avental (estampado).
-      patient.add(limb(0.05, 0.45, -0.08, TORSO_R * 0.8, -0.15, scrub));
-      patient.add(limb(0.05, 0.45, 0.08, TORSO_R * 0.8, -0.15, scrub));
-      // Pernas — de pele.
-      patient.add(limb(0.04, 0.32, -0.08, TORSO_R * 0.8, -0.56, skin));
-      patient.add(limb(0.04, 0.32, 0.08, TORSO_R * 0.8, -0.56, skin));
-      // Meias brancas nos pés (pontas das pernas).
-      patient.add(limb(0.042, 0.10, -0.08, TORSO_R * 0.8, -0.76, sockMat));
-      patient.add(limb(0.042, 0.10, 0.08, TORSO_R * 0.8, -0.76, sockMat));
+      // Braços — de pele (manga curta), levemente afastados do tronco.
+      patient.add(limb(0.036, 0.46, -0.185, TORSO_R * 0.72, 0.33, skin, 0.028));
+      patient.add(limb(0.036, 0.46, 0.185, TORSO_R * 0.72, 0.33, skin, 0.028));
+      // Mãos (pequenas esferas).
+      var handL = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), skin);
+      handL.position.set(-0.185, TORSO_R * 0.72, 0.08);
+      patient.add(handL);
+      var handR = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), skin);
+      handR.position.set(0.185, TORSO_R * 0.72, 0.08);
+      patient.add(handR);
+      // Pernas — de pele, do joelho (fim do avental) até o tornozelo,
+      // com panturrilha (mais grossa em cima).
+      patient.add(limb(0.048, 0.42, -0.075, TORSO_R * 0.75, -0.42, skin, 0.03));
+      patient.add(limb(0.048, 0.42, 0.075, TORSO_R * 0.75, -0.42, skin, 0.03));
+      // Meias brancas nos pés (com "pezinho" apontando para cima quando deitada).
+      patient.add(limb(0.038, 0.10, -0.075, TORSO_R * 0.75, -0.68, sockMat, 0.035));
+      patient.add(limb(0.038, 0.10, 0.075, TORSO_R * 0.75, -0.68, sockMat, 0.035));
+      var footL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), sockMat);
+      footL.scale.set(0.8, 1.3, 0.8);
+      footL.position.set(-0.075, TORSO_R * 0.85, -0.73);
+      patient.add(footL);
+      var footR = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), sockMat);
+      footR.scale.set(0.8, 1.3, 0.8);
+      footR.position.set(0.075, TORSO_R * 0.85, -0.73);
+      patient.add(footR);
 
-      // -----------------------------------------------------------
-      // Modelo 3D realista da paciente (Quaternius "Modular Women -
-      // Casual", licença CC0 — uso comercial livre; ver models/LICENSE.md).
-      // As primitivas acima ficam como FALLBACK: aparecem de imediato e
-      // permanecem caso o carregamento do GLB falhe (ex: offline antes
-      // do cache). Quando o modelo carrega, as primitivas são ocultadas
-      // e o modelo entra no MESMO grupo `patient` — preservando toda a
-      // lógica de pose/decúbito/laser sem alterações.
-      // -----------------------------------------------------------
-      var primitiveParts = patient.children.slice(); // tudo que é fallback
-      if (typeof THREE.GLTFLoader === "function") {
-        var gltfLoader = new THREE.GLTFLoader();
-        gltfLoader.load(
-          "models/patient.glb",
-          function (gltf) {
-            try {
-              var model = gltf.scene;
-
-              // Sombras em todas as malhas.
-              model.traverse(function (o) {
-                if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
-              });
-
-              // Escala: normaliza a altura do modelo para ~1.68 m.
-              var bbox = new THREE.Box3().setFromObject(model);
-              var size = new THREE.Vector3();
-              bbox.getSize(size);
-              var height = Math.max(size.x, size.y, size.z); // maior eixo = altura em pé
-              var scale = 1.68 / height;
-              model.scale.setScalar(scale);
-
-              // Orientação: o modelo vem EM PÉ (altura no eixo Y, olhando
-              // +Z). Nossa convenção do corpo é DEITADO em decúbito dorsal:
-              // cabeça para +Z, rosto para cima (+Y). A rotação que faz
-              // essa conversão é: -90° em X (deita de costas) seguida de
-              // 180° em Y (cabeça aponta para +Z).
-              var wrapper = new THREE.Group();
-              wrapper.add(model);
-              // Recentraliza o modelo no wrapper (pés na origem).
-              bbox.setFromObject(model);
-              model.position.y -= bbox.min.y; // pés em y=0 do wrapper
-              wrapper.rotation.set(-Math.PI / 2, Math.PI, 0);
-              // Após deitar: o corpo se estende de z=0 (pés) a z=+1.68
-              // (cabeça). Nossa convenção tem os pés em ~-0.8 e cabeça em
-              // ~+0.85, então recuamos o wrapper.
-              wrapper.position.set(0, 0, -0.8);
-
-              // Oculta as primitivas e adiciona o modelo.
-              primitiveParts.forEach(function (p) { p.visible = false; });
-              patient.add(wrapper);
-              showMessage("Modelo 3D da paciente carregado.", "info");
-            } catch (err) {
-              console.error("Erro ao preparar o modelo da paciente:", err);
-            }
-          },
-          undefined,
-          function (err) {
-            console.warn("Falha ao carregar models/patient.glb — usando figura simplificada.", err);
-          }
-        );
-      }
       // O paciente repousa sobre o topo do tampo (tampo tem 0.04 de
       // espessura, então topo em +0.02 em relação ao centro da mesa).
       // As costas ficam nesse plano; o corpo se estende para cima.
