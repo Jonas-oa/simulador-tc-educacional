@@ -1563,11 +1563,44 @@
   }
 
   // =================================================================
+  // ALTERNADOR DE AMBIENTE (Sala 3D  ⇄  Estação de aquisição)
+  // Aditivo: apenas mostra/oculta os dois <main> e sincroniza os botões.
+  // Não interfere na cena 3D, física, laser ou posicionamento do paciente.
+  // =================================================================
+  function initEnvSwitch() {
+    var salaView = document.getElementById("sala-view");
+    var wsView = document.getElementById("workstation-view");
+    var btnSala = document.getElementById("btn-env-sala");
+    var btnWs = document.getElementById("btn-env-workstation");
+    if (!salaView || !wsView || !btnSala || !btnWs) return;
+
+    function setEnv(env) {
+      var isSala = env !== "workstation";
+      salaView.hidden = !isSala;
+      wsView.hidden = isSala;
+      btnSala.setAttribute("aria-pressed", isSala ? "true" : "false");
+      btnWs.setAttribute("aria-pressed", isSala ? "false" : "true");
+      btnSala.classList.toggle("env-switch__btn--active", isSala);
+      btnWs.classList.toggle("env-switch__btn--active", !isSala);
+      document.documentElement.setAttribute("data-env", isSala ? "sala" : "workstation");
+      // Ao voltar para a sala, reavalia o tamanho do canvas (o renderer
+      // pode ter ficado oculto). O handleResize da cena já escuta "resize".
+      if (isSala) window.dispatchEvent(new Event("resize"));
+    }
+
+    btnSala.addEventListener("click", function () { setEnv("sala"); });
+    btnWs.addEventListener("click", function () { setEnv("workstation"); });
+
+    setEnv("sala"); // ambiente inicial
+  }
+
+  // =================================================================
   // INICIALIZAÇÃO
   // =================================================================
   function main() {
     initTheme();
     bootstrap();
+    initEnvSwitch();
   }
 
   if (document.readyState === "loading") {

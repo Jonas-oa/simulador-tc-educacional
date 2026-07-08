@@ -39,6 +39,10 @@
     </div>
 
     <div class="status-bar__actions">
+      <div class="env-switch" role="group" aria-label="Alternar ambiente">
+        <button id="btn-env-sala" class="env-switch__btn env-switch__btn--active" type="button" aria-pressed="true">Sala 3D</button>
+        <button id="btn-env-workstation" class="env-switch__btn" type="button" aria-pressed="false">Aquisição</button>
+      </div>
       <button id="theme-toggle" class="icon-btn" type="button" aria-label="Alternar tema claro/escuro" title="Alternar tema">
         <svg viewBox="0 0 24 24" class="icon-btn__icon" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36A5.5 5.5 0 0 1 12 3z"/></svg>
       </button>
@@ -46,7 +50,7 @@
   </header>
 
   <!-- ===================== ÁREA PRINCIPAL ===================== -->
-  <main class="app-main">
+  <main class="app-main" id="sala-view">
 
     <!-- Viewport 3D -->
     <section class="viewport" aria-label="Visualização 3D do equipamento">
@@ -143,6 +147,81 @@
         </div>
       </div>
     </aside>
+  </main>
+
+  <!-- ===================== AMBIENTE B: ESTAÇÃO DE AQUISIÇÃO =====================
+       Ambiente alternativo (workstation). Ocupa a mesma célula central que a
+       sala 3D e fica oculto (hidden) até ser selecionado no alternador da
+       barra de status. Nesta etapa é um ESQUELETO: sem valores clínicos e sem
+       lógica de aquisição — os campos de protocolo são preenchidos/validados
+       pelo operador em etapas seguintes. -->
+  <main class="workstation-main" id="workstation-view" hidden aria-label="Estação de aquisição de imagens">
+    <div class="ws">
+
+      <header class="ws__topbar">
+        <div>
+          <h2 class="ws__title">Estação de Aquisição</h2>
+          <p class="ws__subtitle">Simulação de workstation para treinamento de operação. Os valores exibidos são ilustrativos e não constituem parâmetros clínicos nem orientação diagnóstica.</p>
+        </div>
+      </header>
+
+      <div class="ws__grid">
+
+        <!-- Lista de exames (fictícia, apenas para contexto) -->
+        <section class="ws-card ws__patients" aria-label="Lista de exames">
+          <h3 class="ws-card__title">Exames</h3>
+          <ul class="ws-list" id="ws-patient-list">
+            <li class="ws-list__item ws-list__item--active">
+              <span class="ws-list__name">Paciente demonstração 01</span>
+              <span class="ws-list__meta">Aguardando protocolo</span>
+            </li>
+            <li class="ws-list__item">
+              <span class="ws-list__name">Paciente demonstração 02</span>
+              <span class="ws-list__meta">Aguardando protocolo</span>
+            </li>
+          </ul>
+          <p class="ws-note">Lista fictícia, somente para dar contexto ao treinamento.</p>
+        </section>
+
+        <!-- Protocolo + parâmetros (esqueleto, campos vazios) -->
+        <section class="ws-card ws__protocol" aria-label="Protocolo e parâmetros">
+          <h3 class="ws-card__title">Protocolo</h3>
+
+          <label class="ws-field ws-field--full">
+            <span class="ws-field__label">Protocolo selecionado</span>
+            <select class="ws-input" id="ws-protocol-select" disabled>
+              <option>— nenhum protocolo cadastrado —</option>
+            </select>
+          </label>
+
+          <div class="ws-params">
+            <label class="ws-field"><span class="ws-field__label">kV</span><input class="ws-input" id="ws-param-kv" type="text" placeholder="—" disabled></label>
+            <label class="ws-field"><span class="ws-field__label">mAs</span><input class="ws-input" id="ws-param-mas" type="text" placeholder="—" disabled></label>
+            <label class="ws-field"><span class="ws-field__label">Pitch</span><input class="ws-input" id="ws-param-pitch" type="text" placeholder="—" disabled></label>
+            <label class="ws-field"><span class="ws-field__label">Colimação</span><input class="ws-input" id="ws-param-colim" type="text" placeholder="—" disabled></label>
+            <label class="ws-field"><span class="ws-field__label">Esp. corte</span><input class="ws-input" id="ws-param-thick" type="text" placeholder="—" disabled></label>
+            <label class="ws-field"><span class="ws-field__label">Kernel</span><input class="ws-input" id="ws-param-kernel" type="text" placeholder="—" disabled></label>
+            <label class="ws-field"><span class="ws-field__label">FOV</span><input class="ws-input" id="ws-param-fov" type="text" placeholder="—" disabled></label>
+          </div>
+
+          <div class="ws-actions">
+            <button class="ws-btn ws-btn--ghost" id="ws-protocol-new" type="button" disabled>Novo protocolo</button>
+            <button class="ws-btn ws-btn--primary" id="ws-acquire" type="button" disabled>Iniciar aquisição</button>
+          </div>
+          <p class="ws-note" id="ws-stage-note">Cadastro/edição de protocolos e a aquisição do exame serão habilitados nas próximas etapas, com os valores técnicos definidos e validados pelo operador.</p>
+        </section>
+
+        <!-- Visualização de cortes (placeholder) -->
+        <section class="ws-card ws__viewer" aria-label="Visualização de cortes">
+          <h3 class="ws-card__title">Imagens</h3>
+          <div class="ws-viewer" id="ws-slice-viewer">
+            <span class="ws-viewer__placeholder">Nenhum volume carregado</span>
+          </div>
+          <p class="ws-note">A visualização de cortes reais será integrada a partir de volumes de licença livre.</p>
+        </section>
+
+      </div>
+    </div>
   </main>
 
   <!-- ===================== PAINEL DE MENSAGENS ===================== -->

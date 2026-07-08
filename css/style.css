@@ -594,3 +594,147 @@ body {
   color: var(--accent-cyan);
   flex-shrink: 0;
 }
+
+/* =====================================================================
+   AMBIENTE B — ESTAÇÃO DE AQUISIÇÃO (workstation) + ALTERNADOR DE AMBIENTE
+   Adicionado na etapa de workstation. Bloco ADITIVO: não altera as regras
+   acima. Reutiliza os design tokens (tema claro/escuro) já definidos.
+   ===================================================================== */
+
+/* O body é uma grade de 3 linhas: barra de status (1), área central (2) e
+   rodapé (3). Os dois ambientes ocupam a MESMA célula central e só um fica
+   visível por vez (o outro recebe o atributo [hidden]). */
+.status-bar { grid-row: 1; }
+.app-main,
+.workstation-main { grid-row: 2; min-height: 0; }
+.message-panel { grid-row: 3; }
+
+/* Alternador de ambiente (segmented control) na barra de status */
+.env-switch {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-panel-raised);
+}
+.env-switch__btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.env-switch__btn + .env-switch__btn { border-left: 1px solid var(--border-strong); }
+.env-switch__btn--active { background: var(--accent-cyan-dim); color: var(--text-primary); }
+@media (max-width: 420px) {
+  .env-switch__btn { padding: 5px 8px; font-size: 0.68rem; }
+}
+
+/* Container da workstation (rola verticalmente dentro da área central) */
+.workstation-main {
+  display: block;
+  overflow-y: auto;
+  background: var(--bg-void);
+}
+.ws {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ws__topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.ws__title { font-size: 1.05rem; letter-spacing: 0.04em; }
+.ws__subtitle { color: var(--text-muted); font-size: 0.75rem; margin-top: 3px; max-width: 62ch; line-height: 1.4; }
+
+.ws__grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr minmax(200px, 300px);
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .ws__grid { grid-template-columns: 1fr; }
+}
+
+.ws-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ws-card__title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.ws-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ws-list__item {
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ws-list__item--active { border-color: var(--accent-cyan-dim); background: var(--bg-panel-raised); }
+.ws-list__name { font-size: 0.82rem; }
+.ws-list__meta { font-size: 0.68rem; color: var(--text-muted); }
+
+.ws-params { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.ws-field { display: flex; flex-direction: column; gap: 3px; }
+.ws-field--full { grid-column: 1 / -1; }
+.ws-field__label { font-size: 0.66rem; letter-spacing: 0.05em; color: var(--text-secondary); text-transform: uppercase; }
+.ws-input {
+  background: var(--bg-display);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 7px 9px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  width: 100%;
+}
+.ws-input:disabled { color: var(--text-muted); cursor: not-allowed; }
+
+.ws-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.ws-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: var(--radius-md);
+  padding: 9px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+}
+.ws-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ws-btn--primary { background: var(--accent-cyan-dim); border-color: var(--accent-cyan); }
+.ws-btn--ghost { background: transparent; }
+
+.ws-viewer {
+  aspect-ratio: 1 / 1;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-display);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ws-viewer__placeholder { color: var(--text-muted); font-size: 0.78rem; }
+
+.ws-note { font-size: 0.68rem; color: var(--text-muted); line-height: 1.35; }
