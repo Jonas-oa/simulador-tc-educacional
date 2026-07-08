@@ -731,7 +731,34 @@
       // centralizar o paciente no isocentro (80 cm), o operador desce a
       // mesa até o tampo ficar em ~66 cm (comportamento realista).
       var patient = new THREE.Group();
-      var skin = new THREE.MeshStandardMaterial({ color: 0xe3b993, roughness: 0.7 });
+
+      // Caminho A: mantém o corpo procedural (primitivas) e melhora só
+      // materiais/suavidade. Bump map sutil de ruído (canvas 128px, custo
+      // de GPU desprezível) dá micro-sombreado à pele, tirando o aspecto
+      // "plástico liso" das esferas/cilindros.
+      function skinBump() {
+        var cnv = document.createElement("canvas");
+        cnv.width = cnv.height = 128;
+        var ctx = cnv.getContext("2d");
+        ctx.fillStyle = "#808080";
+        ctx.fillRect(0, 0, 128, 128);
+        for (var i = 0; i < 2600; i++) {
+          var v = Math.round(128 + (Math.random() - 0.5) * 46);
+          ctx.fillStyle = "rgb(" + v + "," + v + "," + v + ")";
+          ctx.fillRect(Math.random() * 128, Math.random() * 128, 1, 1);
+        }
+        var tex = new THREE.CanvasTexture(cnv);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(2, 2);
+        return tex;
+      }
+      var skin = new THREE.MeshStandardMaterial({
+        color: 0xe8be97,
+        roughness: 0.62,
+        metalness: 0.0,
+        bumpMap: skinBump(),
+        bumpScale: 0.006
+      });
 
       // Avental hospitalar estampado (azul-claro com padrão de pontinhos),
       // gerado via canvas — como o avental da foto de referência.
@@ -762,10 +789,16 @@
       var TORSO_R = 0.12; // raio do torso — espessura ~24 cm
 
       // Cabeça com pescoço.
-      var head = new THREE.Mesh(new THREE.SphereGeometry(0.095, 20, 16), skin);
+      var head = new THREE.Mesh(new THREE.SphereGeometry(0.095, 32, 24), skin);
+      head.scale.set(0.95, 1.05, 1.0); // rosto levemente ovalado (menos "bola")
       head.position.set(0, TORSO_R, 0.76);
       patient.add(head);
-      var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.09, 12), skin);
+      // Queixo/mandíbula sutil, para dar forma ao rosto sem cair no "uncanny".
+      var jaw = new THREE.Mesh(new THREE.SphereGeometry(0.07, 24, 18), skin);
+      jaw.scale.set(0.9, 0.75, 0.95);
+      jaw.position.set(0, TORSO_R - 0.03, 0.775);
+      patient.add(jaw);
+      var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.09, 16), skin);
       neck.rotation.x = Math.PI / 2;
       neck.position.set(0, TORSO_R - 0.01, 0.67);
       patient.add(neck);
@@ -778,20 +811,20 @@
       hairCap.position.copy(head.position);
       hairCap.rotation.x = -Math.PI / 2.4;
       patient.add(hairCap);
-      var hairBun = new THREE.Mesh(new THREE.SphereGeometry(0.036, 12, 10), hairMat);
+      var hairBun = new THREE.Mesh(new THREE.SphereGeometry(0.036, 16, 12), hairMat);
       hairBun.position.set(0, TORSO_R - 0.015, 0.76 + 0.09);
       patient.add(hairBun);
 
       // Ombros arredondados (esferas nas pontas do tronco superior).
-      var shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), scrub);
+      var shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 12), scrub);
       shoulderL.position.set(-0.135, TORSO_R * 0.9, 0.58);
       patient.add(shoulderL);
-      var shoulderR = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), scrub);
+      var shoulderR = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 12), scrub);
       shoulderR.position.set(0.135, TORSO_R * 0.9, 0.58);
       patient.add(shoulderR);
 
       // Tronco superior (tórax) — levemente elíptico (mais largo que alto).
-      var chest = new THREE.Mesh(new THREE.CylinderGeometry(TORSO_R, TORSO_R + 0.015, 0.34, 16), scrub);
+      var chest = new THREE.Mesh(new THREE.CylinderGeometry(TORSO_R, TORSO_R + 0.015, 0.34, 24), scrub);
       chest.scale.x = 1.35; // ombros mais largos que a espessura
       chest.rotation.x = Math.PI / 2;
       chest.position.set(0, TORSO_R * 0.92, 0.44);
@@ -799,14 +832,14 @@
 
       // Avental com caimento (flare): tronco inferior alargando até os
       // joelhos, como o avental da foto (cone truncado).
-      var gownSkirt = new THREE.Mesh(new THREE.CylinderGeometry(TORSO_R + 0.015, TORSO_R + 0.055, 0.5, 16), scrub);
+      var gownSkirt = new THREE.Mesh(new THREE.CylinderGeometry(TORSO_R + 0.015, TORSO_R + 0.055, 0.5, 24), scrub);
       gownSkirt.scale.x = 1.3;
       gownSkirt.rotation.x = Math.PI / 2;
       gownSkirt.position.set(0, TORSO_R * 0.88, 0.02);
       patient.add(gownSkirt);
 
       function limb(r, l, x, y, z, mat, r2) {
-        var m = new THREE.Mesh(new THREE.CylinderGeometry(r, (r2 !== undefined ? r2 : r * 0.85), l, 12), mat);
+        var m = new THREE.Mesh(new THREE.CylinderGeometry(r, (r2 !== undefined ? r2 : r * 0.85), l, 16), mat);
         m.rotation.x = Math.PI / 2;
         m.position.set(x, y, z);
         return m;
@@ -815,10 +848,10 @@
       patient.add(limb(0.036, 0.46, -0.185, TORSO_R * 0.72, 0.33, skin, 0.028));
       patient.add(limb(0.036, 0.46, 0.185, TORSO_R * 0.72, 0.33, skin, 0.028));
       // Mãos (pequenas esferas).
-      var handL = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), skin);
+      var handL = new THREE.Mesh(new THREE.SphereGeometry(0.032, 14, 10), skin);
       handL.position.set(-0.185, TORSO_R * 0.72, 0.08);
       patient.add(handL);
-      var handR = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), skin);
+      var handR = new THREE.Mesh(new THREE.SphereGeometry(0.032, 14, 10), skin);
       handR.position.set(0.185, TORSO_R * 0.72, 0.08);
       patient.add(handR);
       // Pernas — de pele, do joelho (fim do avental) até o tornozelo,
@@ -828,11 +861,11 @@
       // Meias brancas nos pés (com "pezinho" apontando para cima quando deitada).
       patient.add(limb(0.038, 0.10, -0.075, TORSO_R * 0.75, -0.68, sockMat, 0.035));
       patient.add(limb(0.038, 0.10, 0.075, TORSO_R * 0.75, -0.68, sockMat, 0.035));
-      var footL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), sockMat);
+      var footL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 14, 10), sockMat);
       footL.scale.set(0.8, 1.3, 0.8);
       footL.position.set(-0.075, TORSO_R * 0.85, -0.73);
       patient.add(footL);
-      var footR = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), sockMat);
+      var footR = new THREE.Mesh(new THREE.SphereGeometry(0.045, 14, 10), sockMat);
       footR.scale.set(0.8, 1.3, 0.8);
       footR.position.set(0.075, TORSO_R * 0.85, -0.73);
       patient.add(footR);
