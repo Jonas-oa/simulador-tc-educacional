@@ -39,18 +39,21 @@
     </div>
 
     <div class="status-bar__actions">
-      <div class="env-switch" role="group" aria-label="Alternar ambiente">
-        <button id="btn-env-sala" class="env-switch__btn env-switch__btn--active" type="button" aria-pressed="true">Sala 3D</button>
-        <button id="btn-env-workstation" class="env-switch__btn" type="button" aria-pressed="false">Aquisição</button>
-      </div>
       <button id="theme-toggle" class="icon-btn" type="button" aria-label="Alternar tema claro/escuro" title="Alternar tema">
         <svg viewBox="0 0 24 24" class="icon-btn__icon" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36A5.5 5.5 0 0 1 12 3z"/></svg>
       </button>
     </div>
   </header>
 
-  <!-- ===================== ÁREA PRINCIPAL ===================== -->
-  <main class="app-main" id="sala-view">
+  <!-- ===================== PAINEL DE 4 QUADRANTES ===================== -->
+  <main class="dashboard" id="dashboard">
+
+    <div class="dash-gutter dash-gutter--v" id="dash-gutter-v" role="separator" aria-orientation="vertical" aria-label="Redimensionar largura das colunas"></div>
+    <div class="dash-gutter dash-gutter--h" id="dash-gutter-h" role="separator" aria-orientation="horizontal" aria-label="Redimensionar altura das linhas"></div>
+
+    <!-- SUP. ESQUERDA: Simulador 3D -->
+    <section class="dash-pane dash-pane--sim" id="pane-sim" aria-label="Simulador 3D">
+      <div class="app-main" id="sala-view">
 
     <!-- Viewport 3D -->
     <section class="viewport" aria-label="Visualização 3D do equipamento">
@@ -147,28 +150,14 @@
         </div>
       </div>
     </aside>
-  </main>
+      </div>
+    </section>
 
-  <!-- ===================== AMBIENTE B: ESTAÇÃO DE AQUISIÇÃO =====================
-       Ambiente alternativo (workstation). Ocupa a mesma célula central que a
-       sala 3D e fica oculto (hidden) até ser selecionado no alternador da
-       barra de status. Nesta etapa é um ESQUELETO: sem valores clínicos e sem
-       lógica de aquisição — os campos de protocolo são preenchidos/validados
-       pelo operador em etapas seguintes. -->
-  <main class="workstation-main" id="workstation-view" hidden aria-label="Estação de aquisição de imagens">
-    <div class="ws">
-
-      <header class="ws__topbar">
-        <div>
-          <h2 class="ws__title">Estação de Aquisição</h2>
-          <p class="ws__subtitle">Simulação de workstation para treinamento de operação. Os valores exibidos são ilustrativos e não constituem parâmetros clínicos nem orientação diagnóstica.</p>
-        </div>
-      </header>
-
-      <div class="ws__grid">
-
-        <!-- Lista de exames (fictícia, apenas para contexto) -->
-        <section class="ws-card ws__patients" aria-label="Lista de exames">
+    <!-- SUP. DIREITA: Aquisição de exames -->
+    <section class="dash-pane dash-pane--acq" id="pane-acq" aria-label="Aquisição de exames">
+      <header class="dash-pane__head"><h2 class="dash-pane__title">Aquisição de exames</h2></header>
+      <div class="dash-pane__body">
+<section class="ws-card ws__patients" aria-label="Lista de exames">
           <h3 class="ws-card__title">Exames</h3>
           <ul class="ws-list" id="ws-patient-list">
             <li class="ws-list__item ws-list__item--active">
@@ -182,9 +171,29 @@
           </ul>
           <p class="ws-note">Lista fictícia, somente para dar contexto ao treinamento.</p>
         </section>
+<section class="ws-card ws__viewer" aria-label="Visualização de cortes">
+          <h3 class="ws-card__title">Imagens</h3>
+          <div class="ws-viewer" id="ws-slice-viewer">
+            <img id="ws-slice-img" class="ws-viewer__img" alt="Corte axial de TC de crânio" hidden>
+            <span class="ws-viewer__placeholder" id="ws-viewer-placeholder">Nenhum volume carregado</span>
+          </div>
+          <div class="ws-viewer-ctrl" id="ws-viewer-ctrl" hidden>
+            <input type="range" id="ws-slice-slider" min="0" max="0" value="0" step="1" aria-label="Navegar cortes">
+            <span class="ws-slice-counter" id="ws-slice-counter">—</span>
+          </div>
+          <div class="ws-actions">
+            <button class="ws-btn" id="ws-volume-load" type="button">Carregar volume de crânio</button>
+          </div>
+          <p class="ws-note" id="ws-viewer-caption">Ao carregar: volume real anonimizado de TC de crânio, de licença livre. A janela é apenas de exibição — não constitui interpretação diagnóstica.</p>
+        </section>
+      </div>
+    </section>
 
-        <!-- Protocolo + parâmetros (esqueleto, campos vazios) -->
-        <section class="ws-card ws__protocol" aria-label="Protocolo e parâmetros">
+    <!-- INF. DIREITA: Cadastro e seleção de protocolos -->
+    <section class="dash-pane dash-pane--proto" id="pane-proto" aria-label="Cadastro e seleção de protocolos">
+      <header class="dash-pane__head"><h2 class="dash-pane__title">Protocolos</h2></header>
+      <div class="dash-pane__body">
+<section class="ws-card ws__protocol" aria-label="Protocolo e parâmetros">
           <h3 class="ws-card__title">Protocolo</h3>
 
           <label class="ws-field ws-field--full">
@@ -215,26 +224,17 @@
           </div>
           <p class="ws-note" id="ws-stage-note">Os valores técnicos (kV, mAs, pitch, kernel…) são definidos e validados por você — use “Editar” para preencher cada protocolo; eles ficam salvos no dispositivo. A aquisição do exame será habilitada em etapa futura.</p>
         </section>
-
-        <!-- Visualização de cortes (placeholder) -->
-        <section class="ws-card ws__viewer" aria-label="Visualização de cortes">
-          <h3 class="ws-card__title">Imagens</h3>
-          <div class="ws-viewer" id="ws-slice-viewer">
-            <img id="ws-slice-img" class="ws-viewer__img" alt="Corte axial de TC de crânio" hidden>
-            <span class="ws-viewer__placeholder" id="ws-viewer-placeholder">Nenhum volume carregado</span>
-          </div>
-          <div class="ws-viewer-ctrl" id="ws-viewer-ctrl" hidden>
-            <input type="range" id="ws-slice-slider" min="0" max="0" value="0" step="1" aria-label="Navegar cortes">
-            <span class="ws-slice-counter" id="ws-slice-counter">—</span>
-          </div>
-          <div class="ws-actions">
-            <button class="ws-btn" id="ws-volume-load" type="button">Carregar volume de crânio</button>
-          </div>
-          <p class="ws-note" id="ws-viewer-caption">Ao carregar: volume real anonimizado de TC de crânio, de licença livre. A janela é apenas de exibição — não constitui interpretação diagnóstica.</p>
-        </section>
-
       </div>
-    </div>
+    </section>
+
+    <!-- INF. ESQUERDA: A definir -->
+    <section class="dash-pane dash-pane--tbd" id="pane-tbd" aria-label="A definir">
+      <header class="dash-pane__head"><h2 class="dash-pane__title">A definir</h2></header>
+      <div class="dash-pane__body dash-pane__body--tbd">
+        <p class="dash-tbd-note">Espaço reservado para uma próxima função (a definir).</p>
+      </div>
+    </section>
+
   </main>
 
   <!-- ===================== PAINEL DE MENSAGENS ===================== -->

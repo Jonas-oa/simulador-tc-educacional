@@ -1827,35 +1827,71 @@
   }
 
   // =================================================================
-  // ALTERNADOR DE AMBIENTE (Sala 3D  ⇄  Estação de aquisição)
-  // Aditivo: apenas mostra/oculta os dois <main> e sincroniza os botões.
-  // Não interfere na cena 3D, física, laser ou posicionamento do paciente.
+  // PAINEL DE 4 QUADRANTES — DIVISÓRIAS ARRASTÁVEIS ("margens editáveis")
+  // Arrasta a divisória vertical/horizontal (mouse ou toque) e redimensiona
+  // os quadrantes. A cada ajuste redispara "resize" para o canvas 3D se
+  // reajustar. Em telas estreitas o layout empilha (CSS) e as divisórias
+  // ficam ocultas — aqui limpamos os estilos inline para o CSS assumir.
   // =================================================================
-  function initEnvSwitch() {
-    var salaView = document.getElementById("sala-view");
-    var wsView = document.getElementById("workstation-view");
-    var btnSala = document.getElementById("btn-env-sala");
-    var btnWs = document.getElementById("btn-env-workstation");
-    if (!salaView || !wsView || !btnSala || !btnWs) return;
+  function initDashboardSplit() {
+    var dash = document.getElementById("dashboard");
+    var gv = document.getElementById("dash-gutter-v");
+    var gh = document.getElementById("dash-gutter-h");
+    if (!dash || !gv || !gh) return;
 
-    function setEnv(env) {
-      var isSala = env !== "workstation";
-      salaView.hidden = !isSala;
-      wsView.hidden = isSala;
-      btnSala.setAttribute("aria-pressed", isSala ? "true" : "false");
-      btnWs.setAttribute("aria-pressed", isSala ? "false" : "true");
-      btnSala.classList.toggle("env-switch__btn--active", isSala);
-      btnWs.classList.toggle("env-switch__btn--active", !isSala);
-      document.documentElement.setAttribute("data-env", isSala ? "sala" : "workstation");
-      // Ao voltar para a sala, reavalia o tamanho do canvas (o renderer
-      // pode ter ficado oculto). O handleResize da cena já escuta "resize".
-      if (isSala) window.dispatchEvent(new Event("resize"));
+    var MIN = 120, GUT = 6, MOBILE = 900;
+    var colPx = null, rowPx = null; // largura/altura do painel esq/sup; null = 50%
+
+    function apply() {
+      if (window.innerWidth < MOBILE) {
+        dash.style.gridTemplateColumns = "";
+        dash.style.gridTemplateRows = "";
+        return;
+      }
+      var w = dash.clientWidth, h = dash.clientHeight;
+      var left = (colPx == null) ? (w - GUT) / 2 : Math.max(MIN, Math.min(w - GUT - MIN, colPx));
+      var top = (rowPx == null) ? (h - GUT) / 2 : Math.max(MIN, Math.min(h - GUT - MIN, rowPx));
+      dash.style.gridTemplateColumns = left + "px " + GUT + "px 1fr";
+      dash.style.gridTemplateRows = top + "px " + GUT + "px 1fr";
     }
 
-    btnSala.addEventListener("click", function () { setEnv("sala"); });
-    btnWs.addEventListener("click", function () { setEnv("workstation"); });
+    var raf = null;
+    function scheduleResize() {
+      if (raf) return;
+      raf = requestAnimationFrame(function () { raf = null; window.dispatchEvent(new Event("resize")); });
+    }
 
-    setEnv("sala"); // ambiente inicial
+    function makeDraggable(gutter, axis) {
+      gutter.addEventListener("pointerdown", function (e) {
+        if (window.innerWidth < MOBILE) return;
+        e.preventDefault();
+        try { gutter.setPointerCapture(e.pointerId); } catch (err) {}
+        dash.classList.add("dashboard--dragging");
+        function move(ev) {
+          var r = dash.getBoundingClientRect();
+          if (axis === "x") colPx = ev.clientX - r.left - GUT / 2;
+          else rowPx = ev.clientY - r.top - GUT / 2;
+          apply();
+          scheduleResize();
+        }
+        function up() {
+          try { gutter.releasePointerCapture(e.pointerId); } catch (err) {}
+          gutter.removeEventListener("pointermove", move);
+          gutter.removeEventListener("pointerup", up);
+          gutter.removeEventListener("pointercancel", up);
+          dash.classList.remove("dashboard--dragging");
+          window.dispatchEvent(new Event("resize"));
+        }
+        gutter.addEventListener("pointermove", move);
+        gutter.addEventListener("pointerup", up);
+        gutter.addEventListener("pointercancel", up);
+      });
+    }
+    makeDraggable(gv, "x");
+    makeDraggable(gh, "y");
+
+    window.addEventListener("resize", apply);
+    apply();
   }
 
   // =================================================================
@@ -1864,9 +1900,9 @@
   function main() {
     initTheme();
     bootstrap();
-    initEnvSwitch();
     initWorkstationProtocols();
     initWorkstationViewer();
+    initDashboardSplit();
   }
 
   if (document.readyState === "loading") {

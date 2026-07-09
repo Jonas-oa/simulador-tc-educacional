@@ -748,3 +748,72 @@ body {
 .ws-viewer-ctrl { display: flex; align-items: center; gap: 10px; }
 .ws-viewer-ctrl input[type="range"] { flex: 1; min-width: 0; }
 .ws-slice-counter { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-secondary); min-width: 84px; text-align: right; }
+
+/* =====================================================================
+   PAINEL DE 4 QUADRANTES (dashboard) + DIVISÓRIAS ARRASTÁVEIS
+   Substitui o antigo alternador de ambiente: sala 3D, aquisição,
+   protocolos e um quadrante a definir, todos visíveis e redimensionáveis.
+   ===================================================================== */
+.dashboard {
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: 1fr 6px 1fr;
+  grid-template-rows: 1fr 6px 1fr;
+  min-height: 0;
+  background: var(--bg-void);
+}
+.dash-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+}
+.dash-pane--sim   { grid-column: 1; grid-row: 1; background: var(--bg-void); }
+.dash-pane--acq   { grid-column: 3; grid-row: 1; }
+.dash-pane--proto { grid-column: 3; grid-row: 3; }
+.dash-pane--tbd   { grid-column: 1; grid-row: 3; }
+
+.dash-pane__head {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-panel-raised);
+}
+.dash-pane__title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+.dash-pane__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dash-pane__body--tbd { align-items: center; justify-content: center; text-align: center; }
+.dash-tbd-note { font-size: 0.72rem; color: var(--text-muted); }
+
+/* Simulador 3D preenche todo o seu quadrante (sem cabeçalho) */
+#pane-sim .app-main { flex: 1 1 auto; min-height: 0; height: auto; }
+
+/* Divisórias (gutters) */
+.dash-gutter { z-index: 5; background: var(--border-strong); transition: background var(--transition-fast); }
+.dash-gutter:hover { background: var(--accent-cyan); }
+.dash-gutter--v { grid-column: 2; grid-row: 1 / -1; cursor: col-resize; }
+.dash-gutter--h { grid-row: 2; grid-column: 1 / -1; cursor: row-resize; z-index: 6; }
+.dashboard--dragging { user-select: none; -webkit-user-select: none; }
+
+/* Empilha em telas estreitas; divisórias somem */
+@media (max-width: 900px) {
+  .dashboard { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: minmax(62vh, auto); }
+  .dash-gutter { display: none; }
+  .dash-pane--sim, .dash-pane--acq, .dash-pane--proto, .dash-pane--tbd { grid-column: 1; grid-row: auto; }
+}
