@@ -1755,6 +1755,78 @@
   }
 
   // =================================================================
+  // WORKSTATION — VIEWER DE CORTES (volume real de crânio)
+  // Carrega, sob demanda, a pilha de PNGs convertida do volume NRRD (real,
+  // anonimizado, licença livre) descrita em assets/volumes/cranio/manifest.json.
+  // Navegação por slider ou roda do mouse. Sem parser NRRD no navegador.
+  // A janela é apenas de EXIBIÇÃO — não é interpretação diagnóstica.
+  // =================================================================
+  function initWorkstationViewer() {
+    var box = document.getElementById("ws-slice-viewer");
+    var img = document.getElementById("ws-slice-img");
+    var placeholder = document.getElementById("ws-viewer-placeholder");
+    var ctrl = document.getElementById("ws-viewer-ctrl");
+    var slider = document.getElementById("ws-slice-slider");
+    var counter = document.getElementById("ws-slice-counter");
+    var loadBtn = document.getElementById("ws-volume-load");
+    var caption = document.getElementById("ws-viewer-caption");
+    if (!box || !img || !slider || !loadBtn) return;
+
+    var BASE = "assets/volumes/cranio/";
+    var manifest = null;
+    var loaded = false;
+
+    function pad3(n) { n = String(n); while (n.length < 3) n = "0" + n; return n; }
+    function srcFor(i) { return BASE + "axial_" + pad3(i) + ".png"; }
+    function show(i) {
+      if (!manifest) return;
+      i = i | 0;
+      if (i < 0) i = 0;
+      if (i > manifest.cortes - 1) i = manifest.cortes - 1;
+      img.src = srcFor(i);
+      slider.value = i;
+      counter.textContent = "Corte " + (i + 1) + " / " + manifest.cortes;
+    }
+
+    slider.addEventListener("input", function () { if (loaded) show(parseInt(slider.value, 10) || 0); });
+    box.addEventListener("wheel", function (e) {
+      if (!loaded) return;
+      e.preventDefault();
+      show((parseInt(slider.value, 10) || 0) + (e.deltaY > 0 ? 1 : -1));
+    }, { passive: false });
+
+    loadBtn.addEventListener("click", function () {
+      if (loaded) return;
+      loadBtn.disabled = true;
+      loadBtn.textContent = "Carregando…";
+      fetch(BASE + "manifest.json").then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      }).then(function (m) {
+        manifest = m;
+        slider.min = 0;
+        slider.max = m.cortes - 1;
+        placeholder.hidden = true;
+        img.hidden = false;
+        ctrl.hidden = false;
+        loaded = true;
+        show(Math.floor(m.cortes / 2));
+        if (caption && m.fonte) {
+          caption.textContent = "Volume real de TC de crânio (" + m.fonte.nome + "). " + m.fonte.licenca +
+            " Janela de exibição WL " + m.janela_exibicao.wl + " / WW " + m.janela_exibicao.ww +
+            " — apenas visualização, sem interpretação diagnóstica.";
+        }
+        loadBtn.textContent = "Volume carregado";
+        showMessage("Volume de crânio carregado (" + m.cortes + " cortes).", "success");
+      }).catch(function (err) {
+        loadBtn.disabled = false;
+        loadBtn.textContent = "Carregar volume de crânio";
+        showMessage("Falha ao carregar o volume: " + err.message, "error");
+      });
+    });
+  }
+
+  // =================================================================
   // ALTERNADOR DE AMBIENTE (Sala 3D  ⇄  Estação de aquisição)
   // Aditivo: apenas mostra/oculta os dois <main> e sincroniza os botões.
   // Não interfere na cena 3D, física, laser ou posicionamento do paciente.
@@ -1794,6 +1866,7 @@
     bootstrap();
     initEnvSwitch();
     initWorkstationProtocols();
+    initWorkstationViewer();
   }
 
   if (document.readyState === "loading") {

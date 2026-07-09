@@ -220,9 +220,17 @@
         <section class="ws-card ws__viewer" aria-label="Visualização de cortes">
           <h3 class="ws-card__title">Imagens</h3>
           <div class="ws-viewer" id="ws-slice-viewer">
-            <span class="ws-viewer__placeholder">Nenhum volume carregado</span>
+            <img id="ws-slice-img" class="ws-viewer__img" alt="Corte axial de TC de crânio" hidden>
+            <span class="ws-viewer__placeholder" id="ws-viewer-placeholder">Nenhum volume carregado</span>
           </div>
-          <p class="ws-note">A visualização de cortes reais será integrada a partir de volumes de licença livre.</p>
+          <div class="ws-viewer-ctrl" id="ws-viewer-ctrl" hidden>
+            <input type="range" id="ws-slice-slider" min="0" max="0" value="0" step="1" aria-label="Navegar cortes">
+            <span class="ws-slice-counter" id="ws-slice-counter">—</span>
+          </div>
+          <div class="ws-actions">
+            <button class="ws-btn" id="ws-volume-load" type="button">Carregar volume de crânio</button>
+          </div>
+          <p class="ws-note" id="ws-viewer-caption">Ao carregar: volume real anonimizado de TC de crânio, de licença livre. A janela é apenas de exibição — não constitui interpretação diagnóstica.</p>
         </section>
 
       </div>
