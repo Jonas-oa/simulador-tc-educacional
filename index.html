@@ -227,11 +227,27 @@
       </div>
     </section>
 
-    <!-- INF. ESQUERDA: A definir -->
-    <section class="dash-pane dash-pane--tbd" id="pane-tbd" aria-label="A definir">
-      <header class="dash-pane__head"><h2 class="dash-pane__title">A definir</h2></header>
-      <div class="dash-pane__body dash-pane__body--tbd">
-        <p class="dash-tbd-note">Espaço reservado para uma próxima função (a definir).</p>
+    <!-- INF. ESQUERDA: Cadastro de pacientes -->
+    <section class="dash-pane dash-pane--pac" id="pane-pac" aria-label="Cadastro de pacientes">
+      <header class="dash-pane__head"><h2 class="dash-pane__title">Cadastro de pacientes</h2></header>
+      <div class="dash-pane__body">
+        <div class="pac-form" id="pac-form">
+          <label class="ws-field ws-field--full"><span class="ws-field__label">Prontuário</span><input class="ws-input" id="pac-prontuario" type="text" placeholder="nº do prontuário"></label>
+          <label class="ws-field ws-field--full"><span class="ws-field__label">Nome</span><input class="ws-input" id="pac-nome" type="text" placeholder="nome do paciente"></label>
+          <div class="pac-form__row">
+            <label class="ws-field"><span class="ws-field__label">Sexo</span>
+              <select class="ws-input" id="pac-sexo">
+                <option value="Feminino">Feminino</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </label>
+            <label class="ws-field"><span class="ws-field__label">Idade</span><input class="ws-input" id="pac-idade" type="number" min="0" max="130" placeholder="anos"></label>
+          </div>
+          <label class="ws-field ws-field--full"><span class="ws-field__label">Região a examinar</span><select class="ws-input" id="pac-regiao"></select></label>
+          <div class="ws-actions"><button class="ws-btn ws-btn--primary" id="pac-add" type="button">Cadastrar paciente</button></div>
+        </div>
+        <ul class="pac-list" id="pac-list"></ul>
       </div>
     </section>
 

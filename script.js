@@ -1596,6 +1596,170 @@
   }
 
   // =================================================================
+  // BANCO DO APP (IndexedDB) + REGIÕES — infraestrutura compartilhada
+  // Banco único "simuladorTC" (v2) com stores "protocolos" e "pacientes",
+  // usado pelos módulos de protocolos e de cadastro de pacientes.
+  // =================================================================
+  var REGIOES = ["Crânio", "Pescoço", "Tórax", "Abdome", "Pelve", "Coluna", "Membros"];
+  var APP_DB_NAME = "simuladorTC", APP_DB_VER = 2;
+  function openAppDB() {
+    return new Promise(function (resolve, reject) {
+      if (!("indexedDB" in window) || !window.indexedDB) { reject(new Error("IndexedDB indisponível")); return; }
+      var req = window.indexedDB.open(APP_DB_NAME, APP_DB_VER);
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains("protocolos")) db.createObjectStore("protocolos", { keyPath: "id" });
+        if (!db.objectStoreNames.contains("pacientes")) db.createObjectStore("pacientes", { keyPath: "id" });
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error || new Error("Falha ao abrir IndexedDB")); };
+    });
+  }
+  function dbStoreAll(store) {
+    return openAppDB().then(function (db) {
+      return new Promise(function (res, rej) {
+        var r = db.transaction(store, "readonly").objectStore(store).getAll();
+        r.onsuccess = function () { res(r.result || []); };
+        r.onerror = function () { rej(r.error); };
+      });
+    });
+  }
+  function dbStorePut(store, o) {
+    return openAppDB().then(function (db) {
+      return new Promise(function (res, rej) {
+        var r = db.transaction(store, "readwrite").objectStore(store).put(o);
+        r.onsuccess = function () { res(); };
+        r.onerror = function () { rej(r.error); };
+      });
+    });
+  }
+  function dbStoreDel(store, id) {
+    return openAppDB().then(function (db) {
+      return new Promise(function (res, rej) {
+        var r = db.transaction(store, "readwrite").objectStore(store).delete(id);
+        r.onsuccess = function () { res(); };
+        r.onerror = function () { rej(r.error); };
+      });
+    });
+  }
+
+  // =================================================================
+  // WORKSTATION — CADASTRO DE PACIENTES (quadrante inferior esquerdo)
+  // Formulário (prontuário, nome, sexo, idade, região) + lista persistida.
+  // Os pacientes cadastrados alimentam a lista "Exames" da aquisição.
+  // Nenhum dado clínico é presumido.
+  // =================================================================
+  function initPatients() {
+    var fPront = document.getElementById("pac-prontuario");
+    var fNome = document.getElementById("pac-nome");
+    var fSexo = document.getElementById("pac-sexo");
+    var fIdade = document.getElementById("pac-idade");
+    var fRegiao = document.getElementById("pac-regiao");
+    var btnAdd = document.getElementById("pac-add");
+    var listEl = document.getElementById("pac-list");
+    var examList = document.getElementById("ws-patient-list");
+    if (!fNome || !btnAdd || !listEl) return;
+
+    var pacientes = [];
+    var memoryFallback = false;
+
+    if (fRegiao && !fRegiao.options.length) {
+      REGIOES.forEach(function (r) {
+        var o = document.createElement("option");
+        o.value = r; o.textContent = r;
+        fRegiao.appendChild(o);
+      });
+    }
+
+    function persist(o) { if (memoryFallback) return Promise.resolve(); return dbStorePut("pacientes", o).catch(function () { memoryFallback = true; }); }
+    function persistDel(id) { if (memoryFallback) return Promise.resolve(); return dbStoreDel("pacientes", id).catch(function () { memoryFallback = true; }); }
+
+    function renderExamList() {
+      if (!examList) return;
+      examList.innerHTML = "";
+      if (pacientes.length === 0) {
+        var li0 = document.createElement("li");
+        li0.className = "ws-list__item";
+        var n0 = document.createElement("span"); n0.className = "ws-list__name"; n0.textContent = "Nenhum paciente cadastrado";
+        var m0 = document.createElement("span"); m0.className = "ws-list__meta"; m0.textContent = "Cadastre no quadrante inferior esquerdo";
+        li0.appendChild(n0); li0.appendChild(m0);
+        examList.appendChild(li0);
+        return;
+      }
+      pacientes.forEach(function (p) {
+        var li = document.createElement("li");
+        li.className = "ws-list__item";
+        var nm = document.createElement("span"); nm.className = "ws-list__name";
+        nm.textContent = p.nome + (p.prontuario ? " · " + p.prontuario : "");
+        var meta = document.createElement("span"); meta.className = "ws-list__meta";
+        meta.textContent = [p.regiao, p.idade ? p.idade + " anos" : "", p.sexo].filter(Boolean).join(" · ") || "Aguardando protocolo";
+        li.appendChild(nm); li.appendChild(meta);
+        examList.appendChild(li);
+      });
+    }
+
+    function renderList() {
+      listEl.innerHTML = "";
+      if (pacientes.length === 0) {
+        var empty = document.createElement("li");
+        empty.className = "pac-list__empty";
+        empty.textContent = "Nenhum paciente cadastrado ainda.";
+        listEl.appendChild(empty);
+        return;
+      }
+      pacientes.forEach(function (p) {
+        var li = document.createElement("li");
+        li.className = "pac-list__item";
+        var info = document.createElement("div"); info.className = "pac-list__info";
+        var nm = document.createElement("span"); nm.className = "pac-list__name"; nm.textContent = p.nome;
+        var meta = document.createElement("span"); meta.className = "pac-list__meta";
+        meta.textContent = [p.prontuario ? "Pront. " + p.prontuario : "", p.sexo, p.idade ? p.idade + " anos" : "", p.regiao].filter(Boolean).join(" · ");
+        info.appendChild(nm); info.appendChild(meta);
+        var del = document.createElement("button");
+        del.type = "button"; del.className = "pac-list__del"; del.setAttribute("aria-label", "Excluir paciente"); del.textContent = "✕";
+        del.addEventListener("click", function () {
+          if (!window.confirm("Excluir o paciente \"" + p.nome + "\"?")) return;
+          persistDel(p.id).then(function () {
+            pacientes = pacientes.filter(function (x) { return x.id !== p.id; });
+            renderList(); renderExamList();
+          });
+        });
+        li.appendChild(info); li.appendChild(del);
+        listEl.appendChild(li);
+      });
+    }
+
+    function addPatient() {
+      var nome = (fNome.value || "").trim();
+      if (!nome) { fNome.focus(); showMessage("Informe o nome do paciente.", "warning"); return; }
+      var novo = {
+        id: "pac_" + Date.now(),
+        prontuario: fPront ? (fPront.value || "").trim() : "",
+        nome: nome,
+        sexo: fSexo ? fSexo.value : "",
+        idade: fIdade ? (fIdade.value || "").trim() : "",
+        regiao: fRegiao ? fRegiao.value : ""
+      };
+      pacientes.push(novo);
+      persist(novo).then(function () {
+        renderList(); renderExamList();
+        if (fPront) fPront.value = "";
+        fNome.value = "";
+        if (fIdade) fIdade.value = "";
+        fNome.focus();
+        showMessage("Paciente \"" + novo.nome + "\" cadastrado" + (memoryFallback ? " (temporário)." : "."), "success");
+      });
+    }
+
+    btnAdd.addEventListener("click", addPatient);
+    fNome.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); addPatient(); } });
+
+    dbStoreAll("pacientes")
+      .catch(function (err) { memoryFallback = true; showMessage("Cadastro em modo temporário: " + err.message, "info"); return []; })
+      .then(function (list) { pacientes = list || []; renderList(); renderExamList(); });
+  }
+
+  // =================================================================
   // WORKSTATION — PROTOCOLOS (CRUD + persistência em IndexedDB)
   // Aditivo e isolado do ambiente 3D. Semeia "Crânio" e "Tórax" com
   // campos VAZIOS: os valores técnicos são preenchidos/validados pelo
@@ -1624,54 +1788,13 @@
     var editingId = null;
     var memoryFallback = false;
 
-    var DB_NAME = "simuladorTC", DB_VER = 1, STORE = "protocolos";
-    function openDB() {
-      return new Promise(function (resolve, reject) {
-        if (!("indexedDB" in window) || !window.indexedDB) { reject(new Error("IndexedDB indisponível")); return; }
-        var req = window.indexedDB.open(DB_NAME, DB_VER);
-        req.onupgradeneeded = function () {
-          var db = req.result;
-          if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
-        };
-        req.onsuccess = function () { resolve(req.result); };
-        req.onerror = function () { reject(req.error || new Error("Falha ao abrir IndexedDB")); };
-      });
-    }
-    function dbAll() {
-      return openDB().then(function (db) {
-        return new Promise(function (res, rej) {
-          var r = db.transaction(STORE, "readonly").objectStore(STORE).getAll();
-          r.onsuccess = function () { res(r.result || []); };
-          r.onerror = function () { rej(r.error); };
-        });
-      });
-    }
-    function dbPut(o) {
-      return openDB().then(function (db) {
-        return new Promise(function (res, rej) {
-          var r = db.transaction(STORE, "readwrite").objectStore(STORE).put(o);
-          r.onsuccess = function () { res(); };
-          r.onerror = function () { rej(r.error); };
-        });
-      });
-    }
-    function dbDel(id) {
-      return openDB().then(function (db) {
-        return new Promise(function (res, rej) {
-          var r = db.transaction(STORE, "readwrite").objectStore(STORE).delete(id);
-          r.onsuccess = function () { res(); };
-          r.onerror = function () { rej(r.error); };
-        });
-      });
-    }
-
     function blank(id, nome) {
       return { id: id, nome: nome, regiao: nome, kv: "", mas: "", pitch: "", colimacao: "", espessura: "", kernel: "", fov: "", obs: "" };
     }
     function seedDefaults() { return [blank("cranio", "Crânio"), blank("torax", "Tórax")]; }
 
-    function persist(o) { if (memoryFallback) return Promise.resolve(); return dbPut(o).catch(function () { memoryFallback = true; }); }
-    function persistDelete(id) { if (memoryFallback) return Promise.resolve(); return dbDel(id).catch(function () { memoryFallback = true; }); }
+    function persist(o) { if (memoryFallback) return Promise.resolve(); return dbStorePut("protocolos", o).catch(function () { memoryFallback = true; }); }
+    function persistDelete(id) { if (memoryFallback) return Promise.resolve(); return dbStoreDel("protocolos", id).catch(function () { memoryFallback = true; }); }
 
     function currentProtocol() {
       for (var i = 0; i < protocols.length; i++) if (protocols[i].id === sel.value) return protocols[i];
@@ -1737,10 +1860,10 @@
       });
     });
 
-    dbAll().then(function (list) {
+    dbStoreAll("protocolos").then(function (list) {
       if (!list || list.length === 0) {
         var d = seedDefaults();
-        return Promise.all(d.map(dbPut)).then(function () { return d; });
+        return Promise.all(d.map(function (x) { return dbStorePut("protocolos", x); })).then(function () { return d; });
       }
       return list;
     }).catch(function (err) {
@@ -1902,6 +2025,7 @@
     bootstrap();
     initWorkstationProtocols();
     initWorkstationViewer();
+    initPatients();
     initDashboardSplit();
   }
 

@@ -775,7 +775,7 @@ body {
 .dash-pane--sim   { grid-column: 1; grid-row: 1; background: var(--bg-void); }
 .dash-pane--acq   { grid-column: 3; grid-row: 1; }
 .dash-pane--proto { grid-column: 3; grid-row: 3; }
-.dash-pane--tbd   { grid-column: 1; grid-row: 3; }
+.dash-pane--pac   { grid-column: 1; grid-row: 3; }
 
 .dash-pane__head {
   flex: 0 0 auto;
@@ -815,5 +815,16 @@ body {
 @media (max-width: 900px) {
   .dashboard { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: minmax(62vh, auto); }
   .dash-gutter { display: none; }
-  .dash-pane--sim, .dash-pane--acq, .dash-pane--proto, .dash-pane--tbd { grid-column: 1; grid-row: auto; }
+  .dash-pane--sim, .dash-pane--acq, .dash-pane--proto, .dash-pane--pac { grid-column: 1; grid-row: auto; }
 }
+
+/* Cadastro de pacientes (quadrante inferior esquerdo) */
+.pac-form { display: flex; flex-direction: column; gap: 8px; }
+.pac-form__row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pac-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pac-list__empty { font-size: 0.72rem; color: var(--text-muted); }
+.pac-list__item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.pac-list__info { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.pac-list__name { font-size: 0.82rem; }
+.pac-list__meta { font-size: 0.68rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+.pac-list__del { flex: 0 0 auto; appearance: none; -webkit-appearance: none; border: 1px solid var(--border-strong); background: transparent; color: var(--accent-red); border-radius: var(--radius-sm); width: 26px; height: 26px; cursor: pointer; line-height: 1; }
