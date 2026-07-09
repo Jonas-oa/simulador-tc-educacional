@@ -1768,97 +1768,118 @@
   // (ex.: modo privado), cai para um cache em memória (sem persistir).
   // =================================================================
   function initWorkstationProtocols() {
-    var sel = document.getElementById("ws-protocol-select");
+    var regionLabel = document.getElementById("proto-region-label");
+    var listEl = document.getElementById("proto-list");
+    var emptyEl = document.getElementById("proto-empty");
+    var btnNew = document.getElementById("proto-new");
+    var editor = document.getElementById("proto-editor");
     var actionsView = document.getElementById("ws-actions-view");
     var actionsEdit = document.getElementById("ws-actions-edit");
     var btnEdit = document.getElementById("ws-protocol-edit");
-    var btnNew = document.getElementById("ws-protocol-new");
     var btnDelete = document.getElementById("ws-protocol-delete");
     var btnSave = document.getElementById("ws-protocol-save");
     var btnCancel = document.getElementById("ws-protocol-cancel");
-    if (!sel || !actionsView || !actionsEdit) return;
+    var zones = document.querySelectorAll("[data-region]");
+    if (!listEl || !editor || !regionLabel) return;
 
-    // ids dos inputs = "ws-param-<f>"; mapa para as chaves do registro.
     var FIELDS = ["kv", "mas", "pitch", "colim", "thick", "kernel", "fov"];
     var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov" };
     function inputEl(f) { return document.getElementById("ws-param-" + f); }
 
     var protocols = [];
+    var currentRegion = null;
+    var currentId = null;
     var mode = "view";
-    var editingId = null;
     var memoryFallback = false;
 
-    function blank(id, nome) {
-      return { id: id, nome: nome, regiao: nome, kv: "", mas: "", pitch: "", colimacao: "", espessura: "", kernel: "", fov: "", obs: "" };
+    function blank(id, nome, regiao) {
+      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", colimacao: "", espessura: "", kernel: "", fov: "", obs: "" };
     }
-    function seedDefaults() { return [blank("cranio", "Crânio"), blank("torax", "Tórax")]; }
-
+    function seedDefaults() { return [blank("cranio", "Crânio", "Crânio"), blank("torax", "Tórax", "Tórax")]; }
     function persist(o) { if (memoryFallback) return Promise.resolve(); return dbStorePut("protocolos", o).catch(function () { memoryFallback = true; }); }
     function persistDelete(id) { if (memoryFallback) return Promise.resolve(); return dbStoreDel("protocolos", id).catch(function () { memoryFallback = true; }); }
 
-    function currentProtocol() {
-      for (var i = 0; i < protocols.length; i++) if (protocols[i].id === sel.value) return protocols[i];
-      return null;
-    }
-    function renderSelect(selectId) {
-      sel.innerHTML = "";
-      protocols.forEach(function (p) {
-        var o = document.createElement("option");
-        o.value = p.id; o.textContent = p.nome;
-        sel.appendChild(o);
-      });
-      if (selectId) sel.value = selectId;
+    function inRegion() { return protocols.filter(function (p) { return p.regiao === currentRegion; }); }
+    function byId(id) { for (var i = 0; i < protocols.length; i++) if (protocols[i].id === id) return protocols[i]; return null; }
+
+    function highlightZones() {
+      for (var i = 0; i < zones.length; i++) {
+        zones[i].classList.toggle("is-active", zones[i].getAttribute("data-region") === currentRegion);
+      }
     }
     function fillFields(p) {
-      FIELDS.forEach(function (f) {
-        var el = inputEl(f);
-        if (el) el.value = p ? (p[FIELD_KEYS[f]] || "") : "";
-      });
+      FIELDS.forEach(function (f) { var el = inputEl(f); if (el) el.value = p ? (p[FIELD_KEYS[f]] || "") : ""; });
     }
     function setMode(m) {
       mode = m;
       var editing = (m === "edit");
       FIELDS.forEach(function (f) { var el = inputEl(f); if (el) el.disabled = !editing; });
-      sel.disabled = editing;
-      actionsView.hidden = editing;
-      actionsEdit.hidden = !editing;
+      if (actionsView) actionsView.hidden = editing;
+      if (actionsEdit) actionsEdit.hidden = !editing;
     }
-    function refresh(selectId) { renderSelect(selectId); fillFields(currentProtocol()); }
 
-    sel.addEventListener("change", function () { if (mode !== "edit") fillFields(currentProtocol()); });
-    btnEdit.addEventListener("click", function () {
-      var p = currentProtocol(); if (!p) return;
-      editingId = p.id; setMode("edit");
-    });
-    btnCancel.addEventListener("click", function () { setMode("view"); fillFields(currentProtocol()); });
-    btnSave.addEventListener("click", function () {
-      var p = null;
-      for (var i = 0; i < protocols.length; i++) if (protocols[i].id === editingId) { p = protocols[i]; break; }
-      if (!p) { setMode("view"); return; }
-      FIELDS.forEach(function (f) { var el = inputEl(f); if (el) p[FIELD_KEYS[f]] = el.value.trim(); });
-      persist(p).then(function () {
-        setMode("view");
-        showMessage("Protocolo \"" + p.nome + "\" salvo" + (memoryFallback ? " (temporário, sem persistência)." : "."), "success");
+    function renderList() {
+      listEl.innerHTML = "";
+      var items = inRegion();
+      if (emptyEl) emptyEl.hidden = items.length !== 0;
+      items.forEach(function (p) {
+        var li = document.createElement("li");
+        li.className = "proto-list__item" + (p.id === currentId ? " is-active" : "");
+        li.textContent = p.nome;
+        li.setAttribute("data-id", p.id);
+        li.addEventListener("click", function () { selectProtocol(p.id); });
+        listEl.appendChild(li);
       });
+    }
+    function selectRegion(region) {
+      currentRegion = region;
+      currentId = null;
+      highlightZones();
+      regionLabel.textContent = region;
+      if (btnNew) btnNew.hidden = false;
+      editor.hidden = true;
+      setMode("view");
+      renderList();
+    }
+    function selectProtocol(id) {
+      currentId = id;
+      renderList();
+      fillFields(byId(id));
+      editor.hidden = false;
+      setMode("view");
+    }
+
+    if (btnEdit) btnEdit.addEventListener("click", function () { if (currentId) setMode("edit"); });
+    if (btnCancel) btnCancel.addEventListener("click", function () { setMode("view"); fillFields(byId(currentId)); });
+    if (btnSave) btnSave.addEventListener("click", function () {
+      var p = byId(currentId); if (!p) { setMode("view"); return; }
+      FIELDS.forEach(function (f) { var el = inputEl(f); if (el) p[FIELD_KEYS[f]] = el.value.trim(); });
+      persist(p).then(function () { setMode("view"); showMessage("Protocolo \"" + p.nome + "\" salvo" + (memoryFallback ? " (temporário)." : "."), "success"); });
     });
-    btnNew.addEventListener("click", function () {
-      var nome = window.prompt("Nome do novo protocolo:", "");
-      if (nome === null) return;
-      nome = nome.trim(); if (!nome) return;
-      var novo = blank("p_" + Date.now(), nome);
-      protocols.push(novo);
-      persist(novo).then(function () { refresh(novo.id); editingId = novo.id; setMode("edit"); });
-    });
-    btnDelete.addEventListener("click", function () {
-      var p = currentProtocol(); if (!p) return;
+    if (btnDelete) btnDelete.addEventListener("click", function () {
+      var p = byId(currentId); if (!p) return;
       if (!window.confirm("Excluir o protocolo \"" + p.nome + "\"?")) return;
       persistDelete(p.id).then(function () {
         protocols = protocols.filter(function (x) { return x.id !== p.id; });
-        if (protocols.length === 0) { protocols = seedDefaults(); protocols.forEach(persist); }
-        refresh(protocols[0] && protocols[0].id);
+        currentId = null; editor.hidden = true; renderList();
         showMessage("Protocolo removido.", "info");
       });
     });
+    if (btnNew) btnNew.addEventListener("click", function () {
+      if (!currentRegion) { showMessage("Selecione uma região no modelo primeiro.", "warning"); return; }
+      var nome = window.prompt("Nome do novo protocolo (" + currentRegion + "):", "");
+      if (nome === null) return; nome = nome.trim(); if (!nome) return;
+      var novo = blank("p_" + Date.now(), nome, currentRegion);
+      protocols.push(novo);
+      persist(novo).then(function () { selectProtocol(novo.id); setMode("edit"); });
+    });
+
+    for (var z = 0; z < zones.length; z++) {
+      (function (el) {
+        el.style.cursor = "pointer";
+        el.addEventListener("click", function () { selectRegion(el.getAttribute("data-region")); });
+      })(zones[z]);
+    }
 
     dbStoreAll("protocolos").then(function (list) {
       if (!list || list.length === 0) {
@@ -1868,12 +1889,11 @@
       return list;
     }).catch(function (err) {
       memoryFallback = true;
-      showMessage("Protocolos em modo temporário (sem persistência): " + err.message, "info");
+      showMessage("Protocolos em modo temporário: " + err.message, "info");
       return seedDefaults();
     }).then(function (list) {
       protocols = list;
-      setMode("view");
-      refresh(protocols[0] && protocols[0].id);
+      selectRegion("Crânio");
     });
   }
 

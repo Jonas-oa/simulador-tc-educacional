@@ -193,37 +193,51 @@
     <section class="dash-pane dash-pane--proto" id="pane-proto" aria-label="Cadastro e seleção de protocolos">
       <header class="dash-pane__head"><h2 class="dash-pane__title">Protocolos</h2></header>
       <div class="dash-pane__body">
-<section class="ws-card ws__protocol" aria-label="Protocolo e parâmetros">
-          <h3 class="ws-card__title">Protocolo</h3>
-
-          <label class="ws-field ws-field--full">
-            <span class="ws-field__label">Protocolo selecionado</span>
-            <select class="ws-input" id="ws-protocol-select">
-              <option>Carregando…</option>
-            </select>
-          </label>
-
-          <div class="ws-params">
-            <label class="ws-field"><span class="ws-field__label">kV</span><input class="ws-input" id="ws-param-kv" type="text" placeholder="—" disabled></label>
-            <label class="ws-field"><span class="ws-field__label">mAs</span><input class="ws-input" id="ws-param-mas" type="text" placeholder="—" disabled></label>
-            <label class="ws-field"><span class="ws-field__label">Pitch</span><input class="ws-input" id="ws-param-pitch" type="text" placeholder="—" disabled></label>
-            <label class="ws-field"><span class="ws-field__label">Colimação</span><input class="ws-input" id="ws-param-colim" type="text" placeholder="—" disabled></label>
-            <label class="ws-field"><span class="ws-field__label">Esp. corte</span><input class="ws-input" id="ws-param-thick" type="text" placeholder="—" disabled></label>
-            <label class="ws-field"><span class="ws-field__label">Kernel</span><input class="ws-input" id="ws-param-kernel" type="text" placeholder="—" disabled></label>
-            <label class="ws-field"><span class="ws-field__label">FOV</span><input class="ws-input" id="ws-param-fov" type="text" placeholder="—" disabled></label>
+        <div class="proto2">
+          <div class="proto2__model">
+            <svg class="bodymap" viewBox="0 0 140 320" role="group" aria-label="Modelo do corpo — toque numa região">
+              <rect class="bodymap__zone" data-region="Membros" x="26" y="68" width="15" height="90" rx="7"><title>Membros</title></rect>
+              <rect class="bodymap__zone" data-region="Membros" x="99" y="68" width="15" height="90" rx="7"><title>Membros</title></rect>
+              <rect class="bodymap__zone" data-region="Membros" x="51" y="185" width="17" height="122" rx="8"><title>Membros</title></rect>
+              <rect class="bodymap__zone" data-region="Membros" x="72" y="185" width="17" height="122" rx="8"><title>Membros</title></rect>
+              <ellipse class="bodymap__zone" data-region="Crânio" cx="70" cy="32" rx="20" ry="24"><title>Crânio</title></ellipse>
+              <rect class="bodymap__zone" data-region="Pescoço" x="61" y="54" width="18" height="12" rx="3"><title>Pescoço</title></rect>
+              <rect class="bodymap__zone" data-region="Tórax" x="44" y="66" width="52" height="46" rx="8"><title>Tórax</title></rect>
+              <rect class="bodymap__zone" data-region="Abdome" x="48" y="113" width="44" height="40" rx="6"><title>Abdome</title></rect>
+              <rect class="bodymap__zone" data-region="Pelve" x="47" y="154" width="46" height="30" rx="7"><title>Pelve</title></rect>
+            </svg>
+            <div class="bodymap__chips">
+              <button type="button" class="bodymap__chip" data-region="Coluna">Coluna</button>
+            </div>
           </div>
+          <div class="proto2__side">
+            <div class="proto2__region" id="proto-region-label">Selecione uma região no modelo</div>
+            <ul class="proto-list" id="proto-list"></ul>
+            <p class="ws-note" id="proto-empty" hidden>Nenhum protocolo nesta região ainda.</p>
+            <button class="ws-btn ws-btn--ghost proto2__new" id="proto-new" type="button" hidden>+ Novo protocolo</button>
 
-          <div class="ws-actions" id="ws-actions-view">
-            <button class="ws-btn" id="ws-protocol-edit" type="button">Editar</button>
-            <button class="ws-btn ws-btn--ghost" id="ws-protocol-new" type="button">Novo</button>
-            <button class="ws-btn ws-btn--danger" id="ws-protocol-delete" type="button">Excluir</button>
+            <div class="proto2__editor" id="proto-editor" hidden>
+              <div class="ws-params">
+                <label class="ws-field"><span class="ws-field__label">kV</span><input class="ws-input" id="ws-param-kv" type="text" placeholder="—" disabled></label>
+                <label class="ws-field"><span class="ws-field__label">mAs</span><input class="ws-input" id="ws-param-mas" type="text" placeholder="—" disabled></label>
+                <label class="ws-field"><span class="ws-field__label">Pitch</span><input class="ws-input" id="ws-param-pitch" type="text" placeholder="—" disabled></label>
+                <label class="ws-field"><span class="ws-field__label">Colimação</span><input class="ws-input" id="ws-param-colim" type="text" placeholder="—" disabled></label>
+                <label class="ws-field"><span class="ws-field__label">Esp. corte</span><input class="ws-input" id="ws-param-thick" type="text" placeholder="—" disabled></label>
+                <label class="ws-field"><span class="ws-field__label">Kernel</span><input class="ws-input" id="ws-param-kernel" type="text" placeholder="—" disabled></label>
+                <label class="ws-field"><span class="ws-field__label">FOV</span><input class="ws-input" id="ws-param-fov" type="text" placeholder="—" disabled></label>
+              </div>
+              <div class="ws-actions" id="ws-actions-view">
+                <button class="ws-btn" id="ws-protocol-edit" type="button">Editar</button>
+                <button class="ws-btn ws-btn--danger" id="ws-protocol-delete" type="button">Excluir</button>
+              </div>
+              <div class="ws-actions" id="ws-actions-edit" hidden>
+                <button class="ws-btn ws-btn--primary" id="ws-protocol-save" type="button">Salvar</button>
+                <button class="ws-btn ws-btn--ghost" id="ws-protocol-cancel" type="button">Cancelar</button>
+              </div>
+              <p class="ws-note">Valores técnicos definidos e validados por você; salvos no dispositivo.</p>
+            </div>
           </div>
-          <div class="ws-actions" id="ws-actions-edit" hidden>
-            <button class="ws-btn ws-btn--primary" id="ws-protocol-save" type="button">Salvar</button>
-            <button class="ws-btn ws-btn--ghost" id="ws-protocol-cancel" type="button">Cancelar</button>
-          </div>
-          <p class="ws-note" id="ws-stage-note">Os valores técnicos (kV, mAs, pitch, kernel…) são definidos e validados por você — use “Editar” para preencher cada protocolo; eles ficam salvos no dispositivo. A aquisição do exame será habilitada em etapa futura.</p>
-        </section>
+        </div>
       </div>
     </section>
 
