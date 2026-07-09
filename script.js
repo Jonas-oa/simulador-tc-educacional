@@ -1596,6 +1596,165 @@
   }
 
   // =================================================================
+  // WORKSTATION — PROTOCOLOS (CRUD + persistência em IndexedDB)
+  // Aditivo e isolado do ambiente 3D. Semeia "Crânio" e "Tórax" com
+  // campos VAZIOS: os valores técnicos são preenchidos/validados pelo
+  // operador (não são presumidos aqui). O mesmo banco poderá guardar as
+  // configurações da Etapa 7. Se o IndexedDB não estiver disponível
+  // (ex.: modo privado), cai para um cache em memória (sem persistir).
+  // =================================================================
+  function initWorkstationProtocols() {
+    var sel = document.getElementById("ws-protocol-select");
+    var actionsView = document.getElementById("ws-actions-view");
+    var actionsEdit = document.getElementById("ws-actions-edit");
+    var btnEdit = document.getElementById("ws-protocol-edit");
+    var btnNew = document.getElementById("ws-protocol-new");
+    var btnDelete = document.getElementById("ws-protocol-delete");
+    var btnSave = document.getElementById("ws-protocol-save");
+    var btnCancel = document.getElementById("ws-protocol-cancel");
+    if (!sel || !actionsView || !actionsEdit) return;
+
+    // ids dos inputs = "ws-param-<f>"; mapa para as chaves do registro.
+    var FIELDS = ["kv", "mas", "pitch", "colim", "thick", "kernel", "fov"];
+    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov" };
+    function inputEl(f) { return document.getElementById("ws-param-" + f); }
+
+    var protocols = [];
+    var mode = "view";
+    var editingId = null;
+    var memoryFallback = false;
+
+    var DB_NAME = "simuladorTC", DB_VER = 1, STORE = "protocolos";
+    function openDB() {
+      return new Promise(function (resolve, reject) {
+        if (!("indexedDB" in window) || !window.indexedDB) { reject(new Error("IndexedDB indisponível")); return; }
+        var req = window.indexedDB.open(DB_NAME, DB_VER);
+        req.onupgradeneeded = function () {
+          var db = req.result;
+          if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
+        };
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error || new Error("Falha ao abrir IndexedDB")); };
+      });
+    }
+    function dbAll() {
+      return openDB().then(function (db) {
+        return new Promise(function (res, rej) {
+          var r = db.transaction(STORE, "readonly").objectStore(STORE).getAll();
+          r.onsuccess = function () { res(r.result || []); };
+          r.onerror = function () { rej(r.error); };
+        });
+      });
+    }
+    function dbPut(o) {
+      return openDB().then(function (db) {
+        return new Promise(function (res, rej) {
+          var r = db.transaction(STORE, "readwrite").objectStore(STORE).put(o);
+          r.onsuccess = function () { res(); };
+          r.onerror = function () { rej(r.error); };
+        });
+      });
+    }
+    function dbDel(id) {
+      return openDB().then(function (db) {
+        return new Promise(function (res, rej) {
+          var r = db.transaction(STORE, "readwrite").objectStore(STORE).delete(id);
+          r.onsuccess = function () { res(); };
+          r.onerror = function () { rej(r.error); };
+        });
+      });
+    }
+
+    function blank(id, nome) {
+      return { id: id, nome: nome, regiao: nome, kv: "", mas: "", pitch: "", colimacao: "", espessura: "", kernel: "", fov: "", obs: "" };
+    }
+    function seedDefaults() { return [blank("cranio", "Crânio"), blank("torax", "Tórax")]; }
+
+    function persist(o) { if (memoryFallback) return Promise.resolve(); return dbPut(o).catch(function () { memoryFallback = true; }); }
+    function persistDelete(id) { if (memoryFallback) return Promise.resolve(); return dbDel(id).catch(function () { memoryFallback = true; }); }
+
+    function currentProtocol() {
+      for (var i = 0; i < protocols.length; i++) if (protocols[i].id === sel.value) return protocols[i];
+      return null;
+    }
+    function renderSelect(selectId) {
+      sel.innerHTML = "";
+      protocols.forEach(function (p) {
+        var o = document.createElement("option");
+        o.value = p.id; o.textContent = p.nome;
+        sel.appendChild(o);
+      });
+      if (selectId) sel.value = selectId;
+    }
+    function fillFields(p) {
+      FIELDS.forEach(function (f) {
+        var el = inputEl(f);
+        if (el) el.value = p ? (p[FIELD_KEYS[f]] || "") : "";
+      });
+    }
+    function setMode(m) {
+      mode = m;
+      var editing = (m === "edit");
+      FIELDS.forEach(function (f) { var el = inputEl(f); if (el) el.disabled = !editing; });
+      sel.disabled = editing;
+      actionsView.hidden = editing;
+      actionsEdit.hidden = !editing;
+    }
+    function refresh(selectId) { renderSelect(selectId); fillFields(currentProtocol()); }
+
+    sel.addEventListener("change", function () { if (mode !== "edit") fillFields(currentProtocol()); });
+    btnEdit.addEventListener("click", function () {
+      var p = currentProtocol(); if (!p) return;
+      editingId = p.id; setMode("edit");
+    });
+    btnCancel.addEventListener("click", function () { setMode("view"); fillFields(currentProtocol()); });
+    btnSave.addEventListener("click", function () {
+      var p = null;
+      for (var i = 0; i < protocols.length; i++) if (protocols[i].id === editingId) { p = protocols[i]; break; }
+      if (!p) { setMode("view"); return; }
+      FIELDS.forEach(function (f) { var el = inputEl(f); if (el) p[FIELD_KEYS[f]] = el.value.trim(); });
+      persist(p).then(function () {
+        setMode("view");
+        showMessage("Protocolo \"" + p.nome + "\" salvo" + (memoryFallback ? " (temporário, sem persistência)." : "."), "success");
+      });
+    });
+    btnNew.addEventListener("click", function () {
+      var nome = window.prompt("Nome do novo protocolo:", "");
+      if (nome === null) return;
+      nome = nome.trim(); if (!nome) return;
+      var novo = blank("p_" + Date.now(), nome);
+      protocols.push(novo);
+      persist(novo).then(function () { refresh(novo.id); editingId = novo.id; setMode("edit"); });
+    });
+    btnDelete.addEventListener("click", function () {
+      var p = currentProtocol(); if (!p) return;
+      if (!window.confirm("Excluir o protocolo \"" + p.nome + "\"?")) return;
+      persistDelete(p.id).then(function () {
+        protocols = protocols.filter(function (x) { return x.id !== p.id; });
+        if (protocols.length === 0) { protocols = seedDefaults(); protocols.forEach(persist); }
+        refresh(protocols[0] && protocols[0].id);
+        showMessage("Protocolo removido.", "info");
+      });
+    });
+
+    dbAll().then(function (list) {
+      if (!list || list.length === 0) {
+        var d = seedDefaults();
+        return Promise.all(d.map(dbPut)).then(function () { return d; });
+      }
+      return list;
+    }).catch(function (err) {
+      memoryFallback = true;
+      showMessage("Protocolos em modo temporário (sem persistência): " + err.message, "info");
+      return seedDefaults();
+    }).then(function (list) {
+      protocols = list;
+      setMode("view");
+      refresh(protocols[0] && protocols[0].id);
+    });
+  }
+
+  // =================================================================
   // ALTERNADOR DE AMBIENTE (Sala 3D  ⇄  Estação de aquisição)
   // Aditivo: apenas mostra/oculta os dois <main> e sincroniza os botões.
   // Não interfere na cena 3D, física, laser ou posicionamento do paciente.
@@ -1634,6 +1793,7 @@
     initTheme();
     bootstrap();
     initEnvSwitch();
+    initWorkstationProtocols();
   }
 
   if (document.readyState === "loading") {

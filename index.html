@@ -189,8 +189,8 @@
 
           <label class="ws-field ws-field--full">
             <span class="ws-field__label">Protocolo selecionado</span>
-            <select class="ws-input" id="ws-protocol-select" disabled>
-              <option>— nenhum protocolo cadastrado —</option>
+            <select class="ws-input" id="ws-protocol-select">
+              <option>Carregando…</option>
             </select>
           </label>
 
@@ -204,11 +204,16 @@
             <label class="ws-field"><span class="ws-field__label">FOV</span><input class="ws-input" id="ws-param-fov" type="text" placeholder="—" disabled></label>
           </div>
 
-          <div class="ws-actions">
-            <button class="ws-btn ws-btn--ghost" id="ws-protocol-new" type="button" disabled>Novo protocolo</button>
-            <button class="ws-btn ws-btn--primary" id="ws-acquire" type="button" disabled>Iniciar aquisição</button>
+          <div class="ws-actions" id="ws-actions-view">
+            <button class="ws-btn" id="ws-protocol-edit" type="button">Editar</button>
+            <button class="ws-btn ws-btn--ghost" id="ws-protocol-new" type="button">Novo</button>
+            <button class="ws-btn ws-btn--danger" id="ws-protocol-delete" type="button">Excluir</button>
           </div>
-          <p class="ws-note" id="ws-stage-note">Cadastro/edição de protocolos e a aquisição do exame serão habilitados nas próximas etapas, com os valores técnicos definidos e validados pelo operador.</p>
+          <div class="ws-actions" id="ws-actions-edit" hidden>
+            <button class="ws-btn ws-btn--primary" id="ws-protocol-save" type="button">Salvar</button>
+            <button class="ws-btn ws-btn--ghost" id="ws-protocol-cancel" type="button">Cancelar</button>
+          </div>
+          <p class="ws-note" id="ws-stage-note">Os valores técnicos (kV, mAs, pitch, kernel…) são definidos e validados por você — use “Editar” para preencher cada protocolo; eles ficam salvos no dispositivo. A aquisição do exame será habilitada em etapa futura.</p>
         </section>
 
         <!-- Visualização de cortes (placeholder) -->
