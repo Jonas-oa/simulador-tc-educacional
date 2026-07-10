@@ -851,8 +851,9 @@ body {
 .proto2__editor { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border-subtle); padding-top: 8px; margin-top: 2px; }
 
 /* =====================================================================
-   MODO CELULAR — duas telas (Posição 3D / Comando), otimizado p/ paisagem
-   Ativado pelo botão discreto na barra de status (body.is-mobile).
+   MODO CELULAR — duas telas: "Sala 3D" (3D + comandos do aparelho
+   flutuantes/semitransparentes) e "Aquisição" (cadastro do paciente,
+   protocolo, exame). Otimizado para paisagem.
    ===================================================================== */
 /* Seletor flutuante discreto no topo */
 .mobile-switch {
@@ -880,29 +881,42 @@ body {
   }
 }
 
-/* Layout do modo celular: só o simulador, em tela cheia */
+/* Base do modo celular */
 body.is-mobile .status-bar,
 body.is-mobile .message-panel { display: none; }
-body.is-mobile .dash-gutter,
-body.is-mobile #pane-acq,
-body.is-mobile #pane-proto,
-body.is-mobile #pane-pac { display: none !important; }
-body.is-mobile .dashboard { grid-template-columns: 1fr !important; grid-template-rows: 1fr !important; }
-body.is-mobile #pane-sim { grid-column: 1 !important; grid-row: 1 !important; border: 0; }
-body.is-mobile #pane-sim .app-main { display: block; }
-body.is-mobile #pane-sim .viewport,
-body.is-mobile #pane-sim .console { height: 100%; width: 100%; }
-
-/* Alterna qual tela aparece */
-body.is-mobile.mob-cmd #pane-sim .viewport { display: none; }
-body.is-mobile.mob-pos #pane-sim .console { display: none; }
-
-/* Tela de Comando espalhada para paisagem */
-body.is-mobile .console {
-  flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center;
-  gap: 22px; padding: 16px; overflow: auto;
+body.is-mobile .dash-gutter { display: none !important; }
+body.is-mobile .dashboard {
+  display: flex !important; flex-direction: column; height: 100%;
+  grid-template-columns: none !important; grid-template-rows: none !important;
+  overflow-y: auto; background: var(--bg-void);
 }
-body.is-mobile .console .display--compact { min-width: 190px; align-self: center; }
-@media (orientation: portrait) {
-  body.is-mobile .console { flex-direction: column; }
+body.is-mobile .dash-pane { border: 0; min-height: 0; }
+
+/* --- TELA "SALA 3D": simulador em tela cheia + comandos flutuantes --- */
+body.is-mobile.mob-3d #pane-sim { display: flex; flex: 1 1 auto; }
+body.is-mobile.mob-3d #pane-acq,
+body.is-mobile.mob-3d #pane-proto,
+body.is-mobile.mob-3d #pane-pac { display: none; }
+body.is-mobile.mob-3d #pane-sim .app-main { display: block; position: relative; height: 100%; }
+body.is-mobile.mob-3d #pane-sim .viewport { position: absolute; inset: 0; height: 100%; width: 100%; }
+/* o HUD do viewport já mostra os dados; oculta o display do console p/ limpar */
+body.is-mobile.mob-3d #pane-sim .console .display--compact { display: none; }
+/* console = camada de comandos flutuantes; não bloqueia o arraste do 3D */
+body.is-mobile.mob-3d #pane-sim .console {
+  position: absolute; inset: 0; z-index: 20; pointer-events: none;
+  display: block; background: transparent; padding: 0; overflow: visible;
 }
+body.is-mobile.mob-3d #pane-sim .console .panel {
+  position: absolute; right: 12px; bottom: 12px; width: auto; margin: 0; pointer-events: auto;
+  background: rgba(6, 12, 20, 0.42); backdrop-filter: blur(7px);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+  padding: 10px; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+}
+
+/* --- TELA "AQUISIÇÃO": workstation empilhada (cadastro > protocolo > exame) --- */
+body.is-mobile.mob-aq #pane-sim { display: none; }
+body.is-mobile.mob-aq #pane-pac { display: flex; order: 1; }
+body.is-mobile.mob-aq #pane-proto { display: flex; order: 2; }
+body.is-mobile.mob-aq #pane-acq { display: flex; order: 3; }
+body.is-mobile.mob-aq .dash-pane { flex: 0 0 auto; overflow: visible; }
+body.is-mobile.mob-aq .dash-pane__body { overflow: visible; }

@@ -2055,25 +2055,25 @@
     function pokeResize() { window.dispatchEvent(new Event("resize")); }
 
     function setView(v) {
-      var pos = v !== "cmd";
-      body.classList.toggle("mob-pos", pos);
-      body.classList.toggle("mob-cmd", !pos);
-      if (bPos) bPos.classList.toggle("is-active", pos);
-      if (bCmd) bCmd.classList.toggle("is-active", !pos);
+      var is3d = v !== "aq";
+      body.classList.toggle("mob-3d", is3d);
+      body.classList.toggle("mob-aq", !is3d);
+      if (bPos) bPos.classList.toggle("is-active", is3d);
+      if (bCmd) bCmd.classList.toggle("is-active", !is3d);
       pokeResize();
     }
     function enable(on) {
       body.classList.toggle("is-mobile", on);
       btn.setAttribute("aria-pressed", on ? "true" : "false");
       sw.hidden = !on;
-      if (on) { setView("pos"); }
-      else { body.classList.remove("mob-pos", "mob-cmd"); }
+      if (on) { setView("3d"); }
+      else { body.classList.remove("mob-3d", "mob-aq"); }
       pokeResize();
     }
 
     btn.addEventListener("click", function () { enable(!body.classList.contains("is-mobile")); });
-    if (bPos) bPos.addEventListener("click", function () { setView("pos"); });
-    if (bCmd) bCmd.addEventListener("click", function () { setView("cmd"); });
+    if (bPos) bPos.addEventListener("click", function () { setView("3d"); });
+    if (bCmd) bCmd.addEventListener("click", function () { setView("aq"); });
     if (bExit) bExit.addEventListener("click", function () { enable(false); });
   }
 
