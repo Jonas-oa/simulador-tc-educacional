@@ -1986,7 +1986,7 @@
     var colPx = null, rowPx = null; // largura/altura do painel esq/sup; null = 50%
 
     function apply() {
-      if (window.innerWidth < MOBILE) {
+      if (document.body.classList.contains("is-mobile") || window.innerWidth < MOBILE) {
         dash.style.gridTemplateColumns = "";
         dash.style.gridTemplateRows = "";
         return;
@@ -2038,6 +2038,46 @@
   }
 
   // =================================================================
+  // MODO CELULAR — duas telas (Posição 3D / Comando), foco em paisagem
+  // Botão discreto liga/desliga; seletor flutuante alterna as telas.
+  // A cada troca redispara "resize" para o canvas 3D se reajustar.
+  // Não altera cena, física, laser nem posicionamento.
+  // =================================================================
+  function initMobileMode() {
+    var btn = document.getElementById("mobile-toggle");
+    var sw = document.getElementById("mobile-switch");
+    var bPos = document.getElementById("mob-view-pos");
+    var bCmd = document.getElementById("mob-view-cmd");
+    var bExit = document.getElementById("mob-exit");
+    var body = document.body;
+    if (!btn || !sw) return;
+
+    function pokeResize() { window.dispatchEvent(new Event("resize")); }
+
+    function setView(v) {
+      var pos = v !== "cmd";
+      body.classList.toggle("mob-pos", pos);
+      body.classList.toggle("mob-cmd", !pos);
+      if (bPos) bPos.classList.toggle("is-active", pos);
+      if (bCmd) bCmd.classList.toggle("is-active", !pos);
+      pokeResize();
+    }
+    function enable(on) {
+      body.classList.toggle("is-mobile", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      sw.hidden = !on;
+      if (on) { setView("pos"); }
+      else { body.classList.remove("mob-pos", "mob-cmd"); }
+      pokeResize();
+    }
+
+    btn.addEventListener("click", function () { enable(!body.classList.contains("is-mobile")); });
+    if (bPos) bPos.addEventListener("click", function () { setView("pos"); });
+    if (bCmd) bCmd.addEventListener("click", function () { setView("cmd"); });
+    if (bExit) bExit.addEventListener("click", function () { enable(false); });
+  }
+
+  // =================================================================
   // INICIALIZAÇÃO
   // =================================================================
   function main() {
@@ -2047,6 +2087,7 @@
     initWorkstationViewer();
     initPatients();
     initDashboardSplit();
+    initMobileMode();
   }
 
   if (document.readyState === "loading") {

@@ -849,3 +849,60 @@ body {
 .proto-list__item.is-active { border-color: var(--accent-cyan); background: var(--bg-panel-raised); }
 .proto2__new { align-self: flex-start; }
 .proto2__editor { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border-subtle); padding-top: 8px; margin-top: 2px; }
+
+/* =====================================================================
+   MODO CELULAR — duas telas (Posição 3D / Comando), otimizado p/ paisagem
+   Ativado pelo botão discreto na barra de status (body.is-mobile).
+   ===================================================================== */
+/* Seletor flutuante discreto no topo */
+.mobile-switch {
+  position: fixed; top: 6px; left: 50%; transform: translateX(-50%);
+  z-index: 60; display: flex; align-items: center; gap: 2px;
+  background: rgba(6, 12, 20, 0.62); border: 1px solid var(--border-strong);
+  border-radius: 999px; padding: 3px; backdrop-filter: blur(5px);
+}
+.mobile-switch__btn {
+  appearance: none; -webkit-appearance: none; border: 0; background: transparent;
+  color: var(--text-secondary); font-size: 0.72rem; font-weight: 600;
+  padding: 5px 14px; border-radius: 999px; cursor: pointer;
+}
+.mobile-switch__btn.is-active { background: var(--accent-cyan); color: #00131c; }
+.mobile-switch__exit { appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; padding: 4px 10px; font-size: 0.8rem; }
+
+/* Dica de girar (só no modo celular em retrato) */
+.mobile-rotate { display: none; }
+@media (orientation: portrait) {
+  body.is-mobile .mobile-rotate {
+    display: block; position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%);
+    z-index: 60; background: rgba(6, 12, 20, 0.62); border: 1px solid var(--border-strong);
+    border-radius: 999px; padding: 5px 12px; font-size: 0.7rem; color: var(--text-secondary);
+    backdrop-filter: blur(5px);
+  }
+}
+
+/* Layout do modo celular: só o simulador, em tela cheia */
+body.is-mobile .status-bar,
+body.is-mobile .message-panel { display: none; }
+body.is-mobile .dash-gutter,
+body.is-mobile #pane-acq,
+body.is-mobile #pane-proto,
+body.is-mobile #pane-pac { display: none !important; }
+body.is-mobile .dashboard { grid-template-columns: 1fr !important; grid-template-rows: 1fr !important; }
+body.is-mobile #pane-sim { grid-column: 1 !important; grid-row: 1 !important; border: 0; }
+body.is-mobile #pane-sim .app-main { display: block; }
+body.is-mobile #pane-sim .viewport,
+body.is-mobile #pane-sim .console { height: 100%; width: 100%; }
+
+/* Alterna qual tela aparece */
+body.is-mobile.mob-cmd #pane-sim .viewport { display: none; }
+body.is-mobile.mob-pos #pane-sim .console { display: none; }
+
+/* Tela de Comando espalhada para paisagem */
+body.is-mobile .console {
+  flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 22px; padding: 16px; overflow: auto;
+}
+body.is-mobile .console .display--compact { min-width: 190px; align-self: center; }
+@media (orientation: portrait) {
+  body.is-mobile .console { flex-direction: column; }
+}
