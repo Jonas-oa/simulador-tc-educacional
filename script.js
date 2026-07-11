@@ -2056,6 +2056,7 @@
 
     function setView(v) {
       var is3d = v !== "aq";
+      body.classList.remove("mob-proto", "mob-pac");
       body.classList.toggle("mob-3d", is3d);
       body.classList.toggle("mob-aq", !is3d);
       if (bPos) bPos.classList.toggle("is-active", is3d);
@@ -2067,7 +2068,7 @@
       btn.setAttribute("aria-pressed", on ? "true" : "false");
       sw.hidden = !on;
       if (on) { setView("3d"); }
-      else { body.classList.remove("mob-3d", "mob-aq"); }
+      else { body.classList.remove("mob-3d", "mob-aq", "mob-proto", "mob-pac"); }
       pokeResize();
     }
 
