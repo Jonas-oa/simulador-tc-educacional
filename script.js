@@ -1782,8 +1782,8 @@
     var zones = document.querySelectorAll("[data-region]");
     if (!listEl || !editor || !regionLabel) return;
 
-    var FIELDS = ["kv", "mas", "pitch", "colim", "thick", "kernel", "fov"];
-    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov" };
+    var FIELDS = ["kv", "mas", "pitch", "colim", "thick", "kernel", "fov", "dose"];
+    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov", dose: "dose" };
     function inputEl(f) { return document.getElementById("ws-param-" + f); }
 
     var protocols = [];
@@ -1793,9 +1793,45 @@
     var memoryFallback = false;
 
     function blank(id, nome, regiao) {
-      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", colimacao: "", espessura: "", kernel: "", fov: "", obs: "" };
+      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", colimacao: "", espessura: "", kernel: "", fov: "", dose: "", obs: "" };
     }
-    function seedDefaults() { return [blank("cranio", "Crânio", "Crânio"), blank("torax", "Tórax", "Tórax")]; }
+
+    // Etapa D — valores DIDÁTICOS de referência (AAPM / DRLs) para TC de crânio.
+    // Editáveis pelo usuário; ele é o responsável técnico pelos parâmetros finais.
+    function cranioDefaults() {
+      return {
+        kv: "120",
+        mas: "300",
+        pitch: "0,55",
+        colimacao: "64 × 0,6 mm",
+        espessura: "5,0 mm encéfalo / 1,25 mm osso",
+        kernel: "Encéfalo (liso) + Osso (nítido)",
+        fov: "220–250 mm",
+        dose: "≈55 mGy (ref.)"
+      };
+    }
+    function cranioObs() { return "Valores didáticos de referência (AAPM/DRL). Ajuste conforme o serviço."; }
+    function isClinicallyBlank(p) {
+      return !(p.kv || p.mas || p.pitch || p.colimacao || p.espessura || p.kernel || p.fov || p.dose);
+    }
+    function applyCranioDefaultsIfBlank() {
+      protocols.forEach(function (p) {
+        if ((p.id === "cranio" || p.regiao === "Crânio") && isClinicallyBlank(p)) {
+          var d = cranioDefaults();
+          for (var k in d) { if (d.hasOwnProperty(k)) p[k] = d[k]; }
+          if (!p.obs) p.obs = cranioObs();
+          persist(p);
+        }
+      });
+    }
+    function cranioSeed() {
+      var p = blank("cranio", "Crânio", "Crânio");
+      var d = cranioDefaults();
+      for (var k in d) { if (d.hasOwnProperty(k)) p[k] = d[k]; }
+      p.obs = cranioObs();
+      return p;
+    }
+    function seedDefaults() { return [cranioSeed(), blank("torax", "Tórax", "Tórax")]; }
     function persist(o) { if (memoryFallback) return Promise.resolve(); return dbStorePut("protocolos", o).catch(function () { memoryFallback = true; }); }
     function persistDelete(id) { if (memoryFallback) return Promise.resolve(); return dbStoreDel("protocolos", id).catch(function () { memoryFallback = true; }); }
 
@@ -1893,6 +1929,7 @@
       return seedDefaults();
     }).then(function (list) {
       protocols = list;
+      applyCranioDefaultsIfBlank();
       selectRegion("Crânio");
     });
   }
