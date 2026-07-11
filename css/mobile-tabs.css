@@ -219,3 +219,42 @@ body.is-mobile .mobile-rotate {
     font-size: 0.94rem;
   }
 }
+
+/* =====================================================================
+   ETAPA A — Painel de comandos móvel + escalável (só tela Sala do celular)
+   Posição/escala via CSS vars, consumidas SOMENTE na regra mobile abaixo;
+   no desktop as vars ficam inertes (a regra não se aplica). Aditivo.
+   ===================================================================== */
+.panel__grip,
+.panel__resize { display: none; }
+
+body.is-mobile.mob-3d #pane-sim .console .panel {
+  left: var(--panel-left, auto);
+  top: var(--panel-top, auto);
+  right: var(--panel-right, 12px);
+  bottom: var(--panel-bottom, 12px);
+  transform: scale(var(--panel-scale, 1));
+  transform-origin: top left;
+  touch-action: none;
+}
+
+body.is-mobile.mob-3d #pane-sim .console .panel .panel__grip {
+  display: flex; align-items: center; justify-content: center;
+  height: 20px; margin: -4px -4px 4px; cursor: grab; touch-action: none;
+}
+body.is-mobile.mob-3d #pane-sim .console .panel .panel__grip span {
+  display: block; width: 34px; height: 4px; border-radius: 2px;
+  background: rgba(255, 255, 255, 0.42);
+}
+body.is-mobile.mob-3d #pane-sim .console .panel .panel__grip:active { cursor: grabbing; }
+
+body.is-mobile.mob-3d #pane-sim .console .panel .panel__resize {
+  display: block; position: absolute; right: 3px; bottom: 3px;
+  width: 18px; height: 18px; cursor: nwse-resize; touch-action: none;
+  opacity: 0.55;
+  background:
+    linear-gradient(135deg,
+      transparent 0 46%, rgba(255,255,255,0.7) 46% 56%,
+      transparent 56% 68%, rgba(255,255,255,0.7) 68% 78%,
+      transparent 78%);
+}

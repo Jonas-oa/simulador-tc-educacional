@@ -2079,6 +2079,140 @@
   }
 
   // =================================================================
+  // ETAPA A — PAINEL DE COMANDOS MÓVEL + ESCALÁVEL (só tela Sala do celular)
+  // Arrastar pela alça, redimensionar pelo canto (escala 0.75×–1.5×).
+  // Posição/escala persistidas em localStorage. Escreve apenas CSS vars no
+  // painel, consumidas só pela regra mobile — no desktop ficam inertes.
+  // Não altera cena, física, laser, poses nem IDs existentes.
+  // =================================================================
+  function initMobilePanel() {
+    var panel = document.getElementById("sala-panel");
+    var grip = document.getElementById("sala-panel-grip");
+    var resize = document.getElementById("sala-panel-resize");
+    if (!panel || !grip || !resize) return;
+
+    var SCALE_MIN = 0.75, SCALE_MAX = 1.5;
+    var KEY_POS = "simuladorTC.panelPos";
+    var KEY_SCALE = "simuladorTC.panelScale";
+    var scale = 1;
+    var positioned = false;
+
+    function parentEl() { return panel.offsetParent || panel.parentElement; }
+
+    function applyPos(left, top) {
+      panel.style.setProperty("--panel-left", left + "px");
+      panel.style.setProperty("--panel-top", top + "px");
+      panel.style.setProperty("--panel-right", "auto");
+      panel.style.setProperty("--panel-bottom", "auto");
+      positioned = true;
+    }
+
+    // Converte a âncora padrão (right/bottom) para left/top na 1ª interação.
+    function ensurePositioned() {
+      if (positioned) return;
+      var pr = parentEl().getBoundingClientRect();
+      var r = panel.getBoundingClientRect();
+      applyPos(r.left - pr.left, r.top - pr.top);
+    }
+
+    function clampPos(left, top) {
+      var pr = parentEl().getBoundingClientRect();
+      var r = panel.getBoundingClientRect();
+      var maxL = Math.max(0, pr.width - r.width);
+      var maxT = Math.max(0, pr.height - r.height);
+      return { left: Math.min(maxL, Math.max(0, left)), top: Math.min(maxT, Math.max(0, top)) };
+    }
+
+    function reclampCurrent() {
+      var left = parseFloat(panel.style.getPropertyValue("--panel-left")) || 0;
+      var top = parseFloat(panel.style.getPropertyValue("--panel-top")) || 0;
+      var c = clampPos(left, top);
+      panel.style.setProperty("--panel-left", c.left + "px");
+      panel.style.setProperty("--panel-top", c.top + "px");
+    }
+
+    function persistPos() {
+      try {
+        var left = parseFloat(panel.style.getPropertyValue("--panel-left"));
+        var top = parseFloat(panel.style.getPropertyValue("--panel-top"));
+        if (!isNaN(left) && !isNaN(top)) {
+          localStorage.setItem(KEY_POS, JSON.stringify({ left: left, top: top }));
+        }
+      } catch (e) { /* sem persistência */ }
+    }
+    function persistScale() {
+      try { localStorage.setItem(KEY_SCALE, String(scale)); } catch (e) { /* sem persistência */ }
+    }
+
+    function loadState() {
+      try {
+        var s = parseFloat(localStorage.getItem(KEY_SCALE));
+        if (!isNaN(s)) {
+          scale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, s));
+          panel.style.setProperty("--panel-scale", scale);
+        }
+      } catch (e) { /* sem persistência */ }
+      try {
+        var p = JSON.parse(localStorage.getItem(KEY_POS) || "null");
+        if (p && typeof p.left === "number" && typeof p.top === "number") applyPos(p.left, p.top);
+      } catch (e) { /* sem persistência */ }
+    }
+
+    // ---- Arraste pela alça ----
+    grip.addEventListener("pointerdown", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      ensurePositioned();
+      try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+      var pr = parentEl().getBoundingClientRect();
+      var r = panel.getBoundingClientRect();
+      var offX = e.clientX - r.left;
+      var offY = e.clientY - r.top;
+      function move(ev) {
+        var c = clampPos(ev.clientX - pr.left - offX, ev.clientY - pr.top - offY);
+        panel.style.setProperty("--panel-left", c.left + "px");
+        panel.style.setProperty("--panel-top", c.top + "px");
+      }
+      function up() {
+        try { grip.releasePointerCapture(e.pointerId); } catch (err) {}
+        grip.removeEventListener("pointermove", move);
+        grip.removeEventListener("pointerup", up);
+        grip.removeEventListener("pointercancel", up);
+        persistPos();
+      }
+      grip.addEventListener("pointermove", move);
+      grip.addEventListener("pointerup", up);
+      grip.addEventListener("pointercancel", up);
+    });
+
+    // ---- Escala pelo canto ----
+    resize.addEventListener("pointerdown", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      ensurePositioned();
+      try { resize.setPointerCapture(e.pointerId); } catch (err) {}
+      var startX = e.clientX, startY = e.clientY, startScale = scale;
+      var baseW = panel.getBoundingClientRect().width / startScale || 1;
+      function move(ev) {
+        var d = ((ev.clientX - startX) + (ev.clientY - startY)) / 2;
+        scale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, startScale + d / baseW));
+        panel.style.setProperty("--panel-scale", scale);
+        reclampCurrent();
+      }
+      function up() {
+        try { resize.releasePointerCapture(e.pointerId); } catch (err) {}
+        resize.removeEventListener("pointermove", move);
+        resize.removeEventListener("pointerup", up);
+        resize.removeEventListener("pointercancel", up);
+        persistScale(); persistPos();
+      }
+      resize.addEventListener("pointermove", move);
+      resize.addEventListener("pointerup", up);
+      resize.addEventListener("pointercancel", up);
+    });
+
+    loadState();
+  }
+
+  // =================================================================
   // INICIALIZAÇÃO
   // =================================================================
   function main() {
@@ -2089,6 +2223,7 @@
     initPatients();
     initDashboardSplit();
     initMobileMode();
+    initMobilePanel();
   }
 
   if (document.readyState === "loading") {

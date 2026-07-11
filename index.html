@@ -90,7 +90,9 @@
             <div class="display__row"><span class="display__label">DECÚBITO</span><span class="display__value" id="display-position">DORSAL</span></div>
           </div>
 
-          <div class="panel">
+          <div class="panel" id="sala-panel">
+            <div class="panel__grip" id="sala-panel-grip" role="button" tabindex="-1" aria-label="Mover painel de comandos" title="Arraste para mover"><span></span></div>
+            <div class="panel__resize" id="sala-panel-resize" role="button" tabindex="-1" aria-label="Redimensionar painel de comandos" title="Arraste para redimensionar"></div>
             <div class="panel__row panel__row--top">
               <button class="pad-btn pad-btn--toggle" id="btn-laser" type="button" data-action="laser-toggle" aria-pressed="false"><span class="pad-btn__icon">✛</span><span class="pad-btn__label">Laser</span></button>
               <button class="pad-btn pad-btn--stop" id="btn-stop" type="button" data-action="stop"><span class="pad-btn__icon">■</span><span class="pad-btn__label">Stop</span></button>
