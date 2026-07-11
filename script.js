@@ -1911,9 +1911,10 @@
     var ctrl = document.getElementById("ws-viewer-ctrl");
     var slider = document.getElementById("ws-slice-slider");
     var counter = document.getElementById("ws-slice-counter");
-    var loadBtn = document.getElementById("ws-volume-load");
+    var startBtn = document.getElementById("ws-exam-start");
+    var cancelBtn = document.getElementById("ws-exam-cancel");
     var caption = document.getElementById("ws-viewer-caption");
-    if (!box || !img || !slider || !loadBtn) return;
+    if (!box || !img || !slider || !startBtn) return;
 
     var BASE = "assets/volumes/cranio/";
     var manifest = null;
@@ -1938,10 +1939,35 @@
       show((parseInt(slider.value, 10) || 0) + (e.deltaY > 0 ? 1 : -1));
     }, { passive: false });
 
-    loadBtn.addEventListener("click", function () {
+    function reveal() {
+      placeholder.hidden = true;
+      img.hidden = false;
+      ctrl.hidden = false;
+      loaded = true;
+      show(Math.floor(manifest.cortes / 2));
+      startBtn.hidden = true;
+      startBtn.disabled = false;
+      startBtn.textContent = "Iniciar exame";
+      if (cancelBtn) cancelBtn.hidden = false;
+    }
+
+    function resetExam() {
+      loaded = false;
+      img.hidden = true;
+      ctrl.hidden = true;
+      placeholder.hidden = false;
+      startBtn.hidden = false;
+      startBtn.disabled = false;
+      startBtn.textContent = "Iniciar exame";
+      if (cancelBtn) cancelBtn.hidden = true;
+    }
+
+    startBtn.addEventListener("click", function () {
       if (loaded) return;
-      loadBtn.disabled = true;
-      loadBtn.textContent = "Carregando…";
+      // Se o manifesto já foi buscado antes, reinicia sem nova requisição.
+      if (manifest) { reveal(); return; }
+      startBtn.disabled = true;
+      startBtn.textContent = "Iniciando…";
       fetch(BASE + "manifest.json").then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
@@ -1949,23 +1975,23 @@
         manifest = m;
         slider.min = 0;
         slider.max = m.cortes - 1;
-        placeholder.hidden = true;
-        img.hidden = false;
-        ctrl.hidden = false;
-        loaded = true;
-        show(Math.floor(m.cortes / 2));
         if (caption && m.fonte) {
           caption.textContent = "Volume real de TC de crânio (" + m.fonte.nome + "). " + m.fonte.licenca +
             " Janela de exibição WL " + m.janela_exibicao.wl + " / WW " + m.janela_exibicao.ww +
             " — apenas visualização, sem interpretação diagnóstica.";
         }
-        loadBtn.textContent = "Volume carregado";
-        showMessage("Volume de crânio carregado (" + m.cortes + " cortes).", "success");
+        reveal();
+        showMessage("Exame iniciado (" + m.cortes + " cortes).", "success");
       }).catch(function (err) {
-        loadBtn.disabled = false;
-        loadBtn.textContent = "Carregar volume de crânio";
-        showMessage("Falha ao carregar o volume: " + err.message, "error");
+        startBtn.disabled = false;
+        startBtn.textContent = "Iniciar exame";
+        showMessage("Falha ao iniciar o exame: " + err.message, "error");
       });
+    });
+
+    if (cancelBtn) cancelBtn.addEventListener("click", function () {
+      resetExam();
+      showMessage("Exame cancelado.", "info");
     });
   }
 
