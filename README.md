@@ -100,6 +100,28 @@ etapa futura)
 - Tema claro/escuro. Layout mobile (vertical) otimizado; barra de
   status com indicadores dinâmicos; painel de mensagens.
 
+**Aquisição integrada ao 3D (revisão 2026-07)**
+- Física real implementada: no topograma o tubo fica estacionário e a
+  MESA 3D translada o paciente pelo gantry — a imagem (agora HORIZONTAL,
+  decúbito dorsal, vértice à direita) se revela em sincronia com a
+  posição REAL da mesa. No volume helicoidal a mesa avança continuamente
+  a v = pitch × colimação ÷ tempo de rotação (1,0 s/volta), com arco
+  luminoso girando no bore e som sintetizado da máquina (WebAudio,
+  offline). Fontes: AAPM CT Lexicon, Bushberg, Siemens CARE Dose.
+- Protocolo ganhou o campo "Direção da varredura": caudo-cranial (mesa
+  sai do gantry — laser no queixo) ou crânio-caudal (mesa entra — laser
+  no vértice). A direção comanda o sentido da mesa, o lado de revelação
+  do topograma e a ordem dos cortes (premissa: axial_000 = mais inferior).
+- Pré-requisitos para iniciar: paciente cadastrado E posicionado na mesa.
+  Zerar a mesa NÃO é obrigatório. Sem curso suficiente na direção
+  programada, a aquisição não inicia (reposicionar a mesa). O Stop físico
+  (emergência) e o Stop da workstation abortam a aquisição e param a mesa.
+- Fallback: se a cena 3D falhar, a aquisição roda por temporizador como
+  antes. Zonas-alvo do planejamento recalibradas para o topograma
+  horizontal (didáticas — validação clínica do usuário). Seed do Crânio:
+  pitch 1,2 e direção caudo-cranial (protocolos já salvos no IndexedDB
+  mantêm os valores antigos até serem editados).
+
 **Layout PC (revisão 2026-07)**
 - Quadrantes com divisórias independentes (Opção B — colunas): a divisória
   vertical ajusta a largura das colunas; cada coluna tem a própria divisória

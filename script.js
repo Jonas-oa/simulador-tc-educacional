@@ -540,6 +540,18 @@
       ring.position.set(0, ISO_Y, -0.6 + GDEPTH / 2 + 0.015);
       gantryGroup.add(ring);
 
+      // Arco de varredura helicoidal (ADITIVO): representa o conjunto
+      // tubo+detectores girando dentro do bore durante a aquisição do
+      // volume (no topograma o tubo fica ESTACIONÁRIO — arco parado/oculto).
+      var spinArc = new THREE.Mesh(
+        new THREE.TorusGeometry(BORE_R - 0.035, 0.02, 10, 40, Math.PI / 2.2),
+        new THREE.MeshStandardMaterial({ color: 0x9fe8ff, emissive: 0x35c5e0, emissiveIntensity: 1.4, roughness: 0.3, transparent: true, opacity: 0.9 })
+      );
+      spinArc.position.set(0, ISO_Y, -0.6 + GDEPTH / 2 - 0.06); // logo atrás da face, dentro do túnel
+      spinArc.visible = false;
+      gantryGroup.add(spinArc);
+      var spinRotTime = 0; // s por volta; 0 = parado/oculto
+
       // Display azul no topo da face (como o painel do Somatom).
       var displayScreen = new THREE.Mesh(
         new THREE.PlaneGeometry(0.34, 0.16),
@@ -1303,6 +1315,7 @@
       if (btnStop) {
         btnStop.addEventListener("click", function () {
           moveUp = moveDown = moveIn = moveOut = false;
+          abortAutoDrive("PARADA DE EMERGÊNCIA — aquisição abortada.");
           var statusEl = document.getElementById("display-status");
           if (statusEl) statusEl.textContent = "PARADO";
           showMessage("PARADA DE EMERGÊNCIA acionada. Todos os movimentos foram interrompidos.", "warning");
@@ -1505,6 +1518,62 @@
       }
 
       // -----------------------------------------------------------
+      // AQUISIÇÃO DIRIGIDA PELA MESA (ponte com a workstation)
+      // Física real: no topograma o tubo fica parado e a MESA translada o
+      // paciente pelo gantry (imagem linha a linha); no helicoidal a mesa
+      // avança continuamente enquanto o gantry gira (v = pitch × colimação
+      // ÷ tempo de rotação). Aqui a workstation comanda a mesa e recebe o
+      // progresso REAL para revelar a imagem em sincronia.
+      // -----------------------------------------------------------
+      var autoDrive = null; // { targetZ, startZ, speed(m/s), onProgress, onDone, onAbort }
+
+      function setSpin(rotTimeS) {
+        spinRotTime = rotTimeS > 0 ? rotTimeS : 0;
+        spinArc.visible = spinRotTime > 0;
+      }
+
+      function abortAutoDrive(motivo) {
+        if (!autoDrive) return;
+        var ad = autoDrive;
+        autoDrive = null;
+        setSpin(0);
+        if (ad.onAbort) ad.onAbort(motivo || "Aquisição interrompida.");
+      }
+
+      tableDriveApi = {
+        isPatientOnTable: function () { return !!patientPlaced; },
+        isBusy: function () { return !!autoDrive; },
+        // opts: { distanceMm, direction: "in"|"out", speedMmS, rotTimeS (0 = topograma), onProgress, onDone, onAbort }
+        start: function (opts) {
+          if (autoDrive) return { ok: false, motivo: "Já existe uma aquisição em andamento." };
+          var dist = Math.max(0.01, (opts.distanceMm || 0) / 1000);
+          var dir = (opts.direction === "in") ? -1 : 1;
+          var target = Math.max(TABLE_Z_MIN, Math.min(TABLE_Z_MAX, tableZ + dir * dist));
+          var travel = Math.abs(target - tableZ);
+          if (travel < dist * 0.98) {
+            return {
+              ok: false,
+              motivo: "Curso da mesa insuficiente para a varredura " +
+                (dir < 0 ? "(entrando no gantry)" : "(saindo do gantry)") +
+                " — reposicione a mesa antes de iniciar."
+            };
+          }
+          autoDrive = {
+            targetZ: target,
+            startZ: tableZ,
+            speed: Math.max(0.005, (opts.speedMmS || 50) / 1000),
+            onProgress: opts.onProgress || null,
+            onDone: opts.onDone || null,
+            onAbort: opts.onAbort || null
+          };
+          setSpin(opts.rotTimeS || 0);
+          if (displayStatusEl) displayStatusEl.textContent = opts.rotTimeS > 0 ? "AQUISIÇÃO HELICOIDAL" : "TOPOGRAMA";
+          return { ok: true };
+        },
+        stop: function () { abortAutoDrive("Aquisição interrompida pela workstation."); }
+      };
+
+      // -----------------------------------------------------------
       // Loop de animação, física e intertravamento de segurança
       // -----------------------------------------------------------
       var last = performance.now();
@@ -1525,10 +1594,22 @@
         var yMin = isInsideBore ? GANTRY_Y_MIN : TABLE_Y_MIN;
         var yMax = isInsideBore ? GANTRY_Y_MAX : TABLE_Y_MAX;
 
-        if (moveUp) nextY = Math.min(yMax, tableY + SPEED_Y * dt);
-        if (moveDown) nextY = Math.max(yMin, tableY - SPEED_Y * dt);
-        if (moveIn) nextZ = Math.max(TABLE_Z_MIN, tableZ - SPEED_Z * dt);
-        if (moveOut) nextZ = Math.min(TABLE_Z_MAX, tableZ + SPEED_Z * dt);
+        if (autoDrive) {
+          // Aquisição em curso: a MESA é comandada pelo protocolo (topograma
+          // ou helicoidal). Comandos manuais ficam suspensos; o Stop físico
+          // ou o Stop da workstation abortam.
+          var adDir = (autoDrive.targetZ >= tableZ) ? 1 : -1;
+          nextZ = tableZ + adDir * autoDrive.speed * dt;
+          if ((adDir > 0 && nextZ >= autoDrive.targetZ) || (adDir < 0 && nextZ <= autoDrive.targetZ)) {
+            nextZ = autoDrive.targetZ;
+          }
+          nextZ = Math.max(TABLE_Z_MIN, Math.min(TABLE_Z_MAX, nextZ));
+        } else {
+          if (moveUp) nextY = Math.min(yMax, tableY + SPEED_Y * dt);
+          if (moveDown) nextY = Math.max(yMin, tableY - SPEED_Y * dt);
+          if (moveIn) nextZ = Math.max(TABLE_Z_MIN, tableZ - SPEED_Z * dt);
+          if (moveOut) nextZ = Math.min(TABLE_Z_MAX, tableZ + SPEED_Z * dt);
+        }
 
         // Intertravamento de entrada: só permite entrar no gantry se a
         // altura estiver dentro da faixa segura (64–88 cm), evitando
@@ -1549,14 +1630,36 @@
         }
 
         var anyMoveFlag = moveUp || moveDown || moveIn || moveOut;
-        setIndicator("motion", anyMoveFlag && moved);
+        setIndicator("motion", (anyMoveFlag || !!autoDrive) && moved);
+
+        if (autoDrive) {
+          var ad = autoDrive;
+          if (alertStatus) {
+            // Intertravamento bloqueou (ex.: altura incompatível na entrada)
+            autoDrive = null; setSpin(0);
+            if (ad.onAbort) ad.onAbort(alertStatus);
+          } else {
+            var span = Math.abs(ad.targetZ - ad.startZ);
+            var prog = span > 0 ? Math.min(1, Math.abs(tableZ - ad.startZ) / span) : 1;
+            if (ad.onProgress) ad.onProgress(prog, tableZ);
+            if (tableZ === ad.targetZ) {
+              autoDrive = null; setSpin(0);
+              if (ad.onDone) ad.onDone();
+            }
+          }
+        }
+
+        if (spinRotTime > 0) {
+          spinArc.rotation.z -= (Math.PI * 2 / spinRotTime) * dt;
+        }
 
         if (alertStatus) {
           showMessage(alertStatus, "warning");
         }
 
         var speedMmS = 0;
-        if (moveIn || moveOut) speedMmS = SPEED_Z * 1000;
+        if (autoDrive) speedMmS = autoDrive.speed * 1000;
+        else if (moveIn || moveOut) speedMmS = SPEED_Z * 1000;
         else if (moveUp || moveDown) speedMmS = SPEED_Y * 1000;
         updateReadouts(speedMmS);
 
@@ -1653,7 +1756,8 @@
   // ao encerrar a simulação o registro do paciente é apagado.
   var examSessionApi = null;
   // Protocolo selecionado para o exame (nome exibido na tela de aquisição).
-  var examProtocol = { name: "", refresh: null };
+  var examProtocol = { name: "", data: null, refresh: null };
+  var tableDriveApi = null; // preenchida pela cena 3D (aquisição dirigida pela mesa)
 
   function initPatients() {
     var fPront = document.getElementById("pac-prontuario");
@@ -1803,8 +1907,8 @@
     var zones = document.querySelectorAll("[data-region]");
     if (!listEl || !editor || !regionLabel) return;
 
-    var FIELDS = ["kv", "mas", "pitch", "colim", "thick", "kernel", "fov", "dose"];
-    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov", dose: "dose" };
+    var FIELDS = ["kv", "mas", "pitch", "direcao", "colim", "thick", "kernel", "fov", "dose"];
+    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", direcao: "direcao", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov", dose: "dose" };
     function inputEl(f) { return document.getElementById("ws-param-" + f); }
 
     var protocols = [];
@@ -1814,7 +1918,7 @@
     var memoryFallback = false;
 
     function blank(id, nome, regiao) {
-      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", colimacao: "", espessura: "", kernel: "", fov: "", dose: "", obs: "" };
+      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", direcao: "caudocranial", colimacao: "", espessura: "", kernel: "", fov: "", dose: "", obs: "" };
     }
 
     // Etapa D — valores DIDÁTICOS de referência (AAPM / DRLs) para TC de crânio.
@@ -1823,7 +1927,8 @@
       return {
         kv: "120",
         mas: "300",
-        pitch: "0,55",
+        pitch: "1,2",
+        direcao: "caudocranial",
         colimacao: "64 × 0,6 mm",
         espessura: "5,0 mm encéfalo / 1,25 mm osso",
         kernel: "Encéfalo (liso) + Osso (nítido)",
@@ -1899,6 +2004,8 @@
     }
     function fillFields(p) {
       FIELDS.forEach(function (f) { var el = inputEl(f); if (el) el.value = p ? (p[FIELD_KEYS[f]] || "") : ""; });
+      var dirEl = inputEl("direcao");
+      if (dirEl && !dirEl.value) dirEl.value = "caudocranial"; // protocolos antigos sem o campo
     }
     function setMode(m) {
       mode = m;
@@ -1957,6 +2064,7 @@
       if (btnEdit) btnEdit.hidden = !p;
       // Este é o protocolo que será usado no exame (aparece na aquisição).
       examProtocol.name = p ? p.nome : "";
+      examProtocol.data = p || null;
       if (examProtocol.refresh) examProtocol.refresh();
     }
 
@@ -2031,15 +2139,104 @@
     var phase = "idle";
     var topoAnim = null;   // requestAnimationFrame da varredura do topograma
     var volTimer = null;   // intervalo da aquisição corte a corte
-    var TOPO_MS = 4000;    // duração didática da varredura do topograma
-    var VOL_MS = 6500;     // duração didática da aquisição do volume
+    var TOPO_MS = 4000;    // fallback (sem cena 3D): duração da varredura
+    var VOL_MS = 6500;     // fallback (sem cena 3D): duração do volume
+    // Física didática da aquisição (mesa REAL comanda a imagem):
+    var TOPO_LEN_MM = 300;   // comprimento coberto pelo topograma inteiro
+    var TOPO_SPEED_MMS = 100;// velocidade da mesa no scout (tubo estacionário)
+    var ROT_S = 1.0;         // tempo de rotação do gantry (s/volta) no helicoidal
 
-    // Caixa de planejamento (%). Zonas-alvo calibradas PARA ESTE topograma
-    // (asset fixo) — didáticas, ajustáveis. range = base↔vértice; FOV = A/P.
-    var DEFAULT_BOX = { top: 7, bottom: 66, left: 6, right: 58 };
-    var boxState = { top: 7, bottom: 66, left: 6, right: 58 };
-    var TARGET = { top: [2, 18], bottom: [56, 76], left: [0, 16], right: [46, 70] };
+    // Caixa de planejamento (%). Zonas-alvo recalibradas para o topograma
+    // HORIZONTAL (decúbito dorsal: face p/ CIMA, vértice à DIREITA, base à
+    // esquerda). Faixa CC = linhas verticais (left/right); FOV A-P =
+    // horizontais (top/bottom). Didáticas — validação clínica do usuário.
+    var DEFAULT_BOX = { top: 6, bottom: 58, left: 34, right: 93 };
+    var boxState = { top: 6, bottom: 58, left: 34, right: 93 };
+    var TARGET = { top: [0, 16], bottom: [46, 70], left: [24, 44], right: [82, 98] };
     var MIN_GAP = 6; // % mínimo entre linhas opostas
+    var lastSlice = 0; // último corte pintado na aquisição (p/ review)
+
+    // Parâmetros do protocolo selecionado (direção, pitch, colimação) com
+    // interpretação tolerante ("1,2", "64 × 0,6 mm", "40 mm"...).
+    function protocolParams() {
+      var p = (examProtocol && examProtocol.data) || {};
+      function num(s) {
+        if (!s) return NaN;
+        var m = String(s).replace(/,/g, ".").match(/\d+(\.\d+)?/);
+        return m ? parseFloat(m[0]) : NaN;
+      }
+      function colimMm(s) {
+        if (!s) return 38.4;
+        var ms = String(s).replace(/,/g, ".").match(/\d+(\.\d+)?/g);
+        if (!ms || !ms.length) return 38.4;
+        if (ms.length >= 2) return parseFloat(ms[0]) * parseFloat(ms[1]); // "64 × 0,6 mm"
+        return parseFloat(ms[0]);                                        // "40 mm"
+      }
+      var pitch = num(p.pitch);
+      if (!(pitch > 0)) pitch = 1.0;
+      return {
+        direcao: p.direcao === "craniocaudal" ? "craniocaudal" : "caudocranial",
+        pitch: pitch,
+        colim: colimMm(p.colimacao)
+      };
+    }
+
+    // ---- som da máquina (WebAudio sintetizado — offline, sem assets) ----
+    var audio = { ctx: null, master: null, nodes: [] };
+    function soundStart(mode, rotTimeS) {
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!audio.ctx) audio.ctx = new AC();
+        var ctx = audio.ctx;
+        if (ctx.state === "suspended") ctx.resume();
+        soundStop();
+        var t = ctx.currentTime;
+        var master = ctx.createGain();
+        master.gain.setValueAtTime(0.0001, t);
+        master.gain.exponentialRampToValueAtTime(mode === "vol" ? 0.13 : 0.06, t + 0.5);
+        master.connect(ctx.destination);
+        // zumbido grave (motor da mesa / rotor do gantry)
+        var osc = ctx.createOscillator();
+        osc.type = "sawtooth";
+        osc.frequency.value = mode === "vol" ? 52 : 36;
+        var oscGain = ctx.createGain(); oscGain.gain.value = 0.5;
+        osc.connect(oscGain); oscGain.connect(master); osc.start();
+        // ruído filtrado (ventilação/atrito)
+        var len = ctx.sampleRate * 2;
+        var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        var d = buf.getChannelData(0);
+        for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        var noise = ctx.createBufferSource(); noise.buffer = buf; noise.loop = true;
+        var bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 0.8;
+        bp.frequency.value = mode === "vol" ? 420 : 200;
+        var nGain = ctx.createGain(); nGain.gain.value = 0.35;
+        noise.connect(bp); bp.connect(nGain); nGain.connect(master); noise.start();
+        if (mode === "vol" && rotTimeS > 0) {
+          // "whoosh" periódico: uma modulação por rotação do gantry
+          var lfo = ctx.createOscillator(); lfo.frequency.value = 1 / rotTimeS;
+          var lfoGain = ctx.createGain(); lfoGain.gain.value = 0.22;
+          lfo.connect(lfoGain); lfoGain.connect(nGain.gain); lfo.start();
+          audio.nodes.push(lfo);
+        }
+        audio.master = master;
+        audio.nodes.push(osc, noise);
+      } catch (e) { /* áudio indisponível — segue sem som */ }
+    }
+    function soundStop() {
+      try {
+        var nodes = audio.nodes, m = audio.master, c = audio.ctx;
+        audio.nodes = []; audio.master = null;
+        if (m && c) {
+          m.gain.cancelScheduledValues(c.currentTime);
+          m.gain.setTargetAtTime(0.0001, c.currentTime, 0.08);
+        }
+        setTimeout(function () {
+          nodes.forEach(function (n) { try { n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} });
+          if (m) { try { m.disconnect(); } catch (e) {} }
+        }, 350);
+      } catch (e) { /* nada a fazer */ }
+    }
 
     function pad3(n) { n = String(n); while (n.length < 3) n = "0" + n; return n; }
     function srcFor(i) { return BASE + "axial_" + pad3(i) + ".png"; }
@@ -2056,19 +2253,19 @@
     // ---- caixa: render, validação, readout ----
     function applyBox() {
       if (!topoBox) return;
-      topoBox.style.setProperty("--range-top", boxState.top + "%");
-      topoBox.style.setProperty("--range-bottom", boxState.bottom + "%");
-      topoBox.style.setProperty("--fov-left", boxState.left + "%");
-      topoBox.style.setProperty("--fov-right", boxState.right + "%");
+      topoBox.style.setProperty("--edge-top", boxState.top + "%");
+      topoBox.style.setProperty("--edge-bottom", boxState.bottom + "%");
+      topoBox.style.setProperty("--edge-left", boxState.left + "%");
+      topoBox.style.setProperty("--edge-right", boxState.right + "%");
     }
     function inZone(v, z) { return v >= z[0] && v <= z[1]; }
     function problems() {
       var p = [];
-      if (boxState.bottom - boxState.top < MIN_GAP) p.push("O limite superior (vértice) deve ficar acima do inferior (base).");
-      else if (!inZone(boxState.top, TARGET.top)) p.push("Leve o limite superior até o vértice.");
-      else if (!inZone(boxState.bottom, TARGET.bottom)) p.push("Leve o limite inferior até a base do crânio.");
-      if (boxState.right - boxState.left < MIN_GAP) p.push("O FOV está invertido ou muito estreito.");
-      else if (!inZone(boxState.left, TARGET.left) || !inZone(boxState.right, TARGET.right)) p.push("Ajuste o FOV para cobrir o crânio.");
+      if (boxState.right - boxState.left < MIN_GAP) p.push("A faixa está invertida ou muito estreita (base à esquerda, vértice à direita).");
+      else if (!inZone(boxState.left, TARGET.left)) p.push("Leve o limite esquerdo até a base do crânio.");
+      else if (!inZone(boxState.right, TARGET.right)) p.push("Leve o limite direito até o vértice.");
+      if (boxState.bottom - boxState.top < MIN_GAP) p.push("O FOV está invertido ou muito estreito.");
+      else if (!inZone(boxState.top, TARGET.top) || !inZone(boxState.bottom, TARGET.bottom)) p.push("Ajuste o FOV para cobrir o crânio (anterior/posterior).");
       return p;
     }
     function renderReadout() {
@@ -2077,9 +2274,11 @@
       if (topoBox) topoBox.classList.toggle("is-invalid", !ok);
       if (phase === "plan") startBtn.disabled = !ok;
       if (!readout) return;
-      var cc = Math.max(0, boxState.bottom - boxState.top).toFixed(0);
-      var ap = Math.max(0, boxState.right - boxState.left).toFixed(0);
-      var msg = "Faixa CC (base→vértice): " + cc + "% · FOV A-P: " + ap + "% da imagem. ";
+      var cc = Math.max(0, boxState.right - boxState.left).toFixed(0);
+      var ap = Math.max(0, boxState.bottom - boxState.top).toFixed(0);
+      var pp = protocolParams();
+      var dirTxt = pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)";
+      var msg = "Faixa CC: " + cc + "% · FOV A-P: " + ap + "% · Direção: " + dirTxt + ". ";
       readout.innerHTML = ok
         ? msg + "Posição válida — Iniciar libera a aquisição."
         : msg + "<span class=\"is-bad\">" + probs[0] + "</span>";
@@ -2119,10 +2318,14 @@
     function stopAnimations() {
       if (topoAnim) { cancelAnimationFrame(topoAnim); topoAnim = null; }
       if (volTimer) { clearInterval(volTimer); volTimer = null; }
+      soundStop();
+      // Para a mesa se a aquisição estiver em curso. Os handlers onAbort
+      // checam a fase — como ela já foi trocada, viram no-op (sem eco).
+      if (tableDriveApi && tableDriveApi.isBusy && tableDriveApi.isBusy()) tableDriveApi.stop();
     }
     function toIdle() {
+      phase = "idle"; loaded = false; lastSlice = 0;
       stopAnimations();
-      phase = "idle"; loaded = false;
       img.hidden = true; ctrl.hidden = true;
       if (topo) topo.hidden = true;
       if (topoBox) topoBox.hidden = true;
@@ -2134,8 +2337,18 @@
       topoImg.style.clipPath = "";
     }
 
-    // Item 3 — topograma NÃO é instantâneo: revela de cima p/ baixo (~4 s),
-    // como a varredura com a mesa em movimento contínuo e o tubo travado.
+    // Topograma com física real: tubo ESTACIONÁRIO, a MESA translada o
+    // paciente pelo gantry e a imagem se revela linha a linha em sincronia
+    // com a posição real da mesa 3D. A direção vem do protocolo:
+    //   caudo-cranial → mesa SAI (revela da base, à esquerda, p/ o vértice)
+    //   crânio-caudal → mesa ENTRA (revela do vértice, à direita, p/ a base)
+    function setTopoClip(k) {
+      var pct = ((1 - k) * 100).toFixed(2);
+      var pp = protocolParams();
+      topoImg.style.clipPath = (pp.direcao === "craniocaudal")
+        ? "inset(0 0 0 " + pct + "%)"
+        : "inset(0 " + pct + "% 0 0)";
+    }
     function toTopoAcq() {
       phase = "topoAcq";
       placeholder.hidden = true;
@@ -2145,31 +2358,60 @@
       if (readout) readout.hidden = true;
       startBtn.disabled = true; startBtn.textContent = "Adquirindo topograma…";
       if (stopBtn) stopBtn.disabled = false;
-      topoImg.style.clipPath = "inset(0 0 100% 0)";
+      setTopoClip(0);
+      soundStart("topo", 0);
+      if (tableDriveApi) {
+        var pp = protocolParams();
+        var res = tableDriveApi.start({
+          distanceMm: TOPO_LEN_MM,
+          direction: pp.direcao === "craniocaudal" ? "in" : "out",
+          speedMmS: TOPO_SPEED_MMS,
+          rotTimeS: 0, // scout: tubo estacionário, gantry não gira
+          onProgress: function (k) { setTopoClip(k); },
+          onDone: function () { soundStop(); toPlan(); },
+          onAbort: function (motivo) {
+            if (phase !== "topoAcq") return;
+            soundStop(); toIdle();
+            showMessage("Topograma abortado: " + motivo, "warning");
+          }
+        });
+        if (!res.ok) {
+          soundStop(); toIdle();
+          showMessage(res.motivo, "warning");
+        }
+        return;
+      }
+      // Fallback (cena 3D indisponível): varredura por tempo, como antes.
       var t0 = performance.now();
       function frame(now) {
         var k = Math.min(1, (now - t0) / TOPO_MS);
-        topoImg.style.clipPath = "inset(0 0 " + ((1 - k) * 100).toFixed(2) + "% 0)";
+        setTopoClip(k);
         if (k < 1) { topoAnim = requestAnimationFrame(frame); }
-        else { topoAnim = null; toPlan(); }
+        else { topoAnim = null; soundStop(); toPlan(); }
       }
       topoAnim = requestAnimationFrame(frame);
     }
 
-    function toPlan() {
+    function toPlan(keepBox) {
       phase = "plan";
       topoImg.style.clipPath = "";
       if (topoBox) topoBox.hidden = false;
       if (readout) readout.hidden = false;
-      boxState = { top: DEFAULT_BOX.top, bottom: DEFAULT_BOX.bottom, left: DEFAULT_BOX.left, right: DEFAULT_BOX.right };
-      applyBox(); renderReadout();
-      startBtn.textContent = "Iniciar";
+      if (!keepBox) {
+        boxState = { top: DEFAULT_BOX.top, bottom: DEFAULT_BOX.bottom, left: DEFAULT_BOX.left, right: DEFAULT_BOX.right };
+      }
+      startBtn.disabled = false; startBtn.textContent = "Iniciar";
+      applyBox(); renderReadout(); // renderReadout pode voltar a travar o Iniciar
       if (stopBtn) stopBtn.disabled = false;
-      showMessage("Topograma adquirido — ajuste faixa (base→vértice) e FOV, depois Iniciar.", "success");
+      if (!keepBox) showMessage("Topograma adquirido — ajuste a faixa (base↔vértice) e o FOV, depois Iniciar.", "success");
     }
 
-    // Item 4 — volume aparece gradativamente, corte a corte, simulando a
-    // mesa avançando pelo gantry durante a aquisição.
+    // Volume HELICOIDAL com física real: a mesa 3D avança continuamente
+    // (v = pitch × colimação ÷ tempo de rotação) enquanto o gantry "gira"
+    // (arco luminoso no bore + som); os cortes aparecem em sincronia com a
+    // posição real da mesa, na ordem da direção programada no protocolo.
+    // Premissa didática: axial_000 = corte mais INFERIOR (base) — a ordem
+    // inverte no crânio-caudal. Validação clínica do usuário.
     function toVolAcq() {
       phase = "volAcq"; loaded = false;
       if (topo) topo.hidden = true;
@@ -2179,23 +2421,53 @@
       startBtn.disabled = true; startBtn.textContent = "Adquirindo volume…";
       if (stopBtn) stopBtn.disabled = false;
       var total = manifest.cortes;
-      var i = 0;
-      var stepMs = Math.max(30, Math.round(VOL_MS / total));
-      // exibição manual durante a aquisição (loaded=false bloqueia slider/roda)
-      function paint(n) {
+      var pp = protocolParams();
+      // Comprimento da varredura = faixa CC planejada no topograma (mm)
+      var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
+      var speed = Math.max(10, Math.min(120, (pp.pitch * pp.colim) / ROT_S)); // mm/s
+      function paintProg(k) {
+        var idx = Math.round(k * (total - 1));
+        var n = (pp.direcao === "craniocaudal") ? (total - 1 - idx) : idx;
+        lastSlice = n;
         img.src = srcFor(n);
         slider.value = n;
-        counter.textContent = "Adquirindo… corte " + (n + 1) + " / " + total;
+        counter.textContent = "Adquirindo… corte " + (idx + 1) + " / " + total +
+          " · mesa a " + Math.round(speed) + " mm/s";
       }
-      paint(0);
+      paintProg(0);
+      soundStart("vol", ROT_S);
+      if (tableDriveApi) {
+        var res = tableDriveApi.start({
+          distanceMm: scanLen,
+          direction: pp.direcao === "craniocaudal" ? "in" : "out",
+          speedMmS: speed,
+          rotTimeS: ROT_S, // liga o arco de varredura girando no bore
+          onProgress: function (k) { paintProg(k); },
+          onDone: function () { soundStop(); toReview(); },
+          onAbort: function (motivo) {
+            if (phase !== "volAcq") return;
+            soundStop(); toPlan(true);
+            showMessage("Aquisição do volume abortada: " + motivo, "warning");
+          }
+        });
+        if (!res.ok) {
+          soundStop(); toPlan(true);
+          showMessage(res.motivo, "warning");
+        }
+        return;
+      }
+      // Fallback (cena 3D indisponível): corte a corte por tempo.
+      var i = 0;
+      var stepMs = Math.max(30, Math.round(VOL_MS / total));
       volTimer = setInterval(function () {
         i++;
         if (i >= total) {
           clearInterval(volTimer); volTimer = null;
+          soundStop();
           toReview();
           return;
         }
-        paint(i);
+        paintProg(i / (total - 1));
       }, stepMs);
     }
 
@@ -2204,7 +2476,7 @@
       slider.disabled = false;
       startBtn.disabled = true; startBtn.textContent = "Exame adquirido";
       if (stopBtn) stopBtn.disabled = false;
-      show(manifest.cortes - 1);
+      show(lastSlice);
       showMessage("Aquisição concluída (" + manifest.cortes + " cortes). Navegue e finalize com Stop.", "success");
     }
 
@@ -2228,8 +2500,12 @@
         showMessage("Cadastre o paciente antes de iniciar o exame.", "warning");
         return;
       }
+      if (tableDriveApi && !tableDriveApi.isPatientOnTable()) {
+        showMessage("Posicione o paciente na mesa (botão Decúbito, na sala 3D) antes de iniciar a aquisição.", "warning");
+        return;
+      }
       if (manifest) {
-        topoImg.src = BASE + (manifest.topograma || "topograma.png");
+        topoImg.src = BASE + (manifest.topograma_h || manifest.topograma || "topograma.png");
         toTopoAcq();
         return;
       }
@@ -2246,7 +2522,7 @@
           caption.textContent = "Topograma ilustrativo (paciente distinto do volume) para planejar a faixa. Volume axial real de TC de crânio (" +
             m.fonte.nome + "). " + m.fonte.licenca + " Apenas visualização — sem interpretação diagnóstica.";
         }
-        topoImg.src = BASE + (m.topograma || "topograma.png");
+        topoImg.src = BASE + (m.topograma_h || m.topograma || "topograma.png");
         toTopoAcq();
       }).catch(function (err) {
         startBtn.disabled = false;

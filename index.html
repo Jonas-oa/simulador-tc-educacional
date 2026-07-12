@@ -156,10 +156,10 @@
             <img id="ws-topo-img" class="ws-topo__img" alt="Topograma lateral de crânio">
             <div class="ws-topo__box" id="ws-topo-box" aria-hidden="true">
               <div class="ws-topo__rect" id="ws-topo-rect"></div>
-              <div class="ws-topo__line ws-topo__line--h ws-topo__line--range" id="ws-topo-top" data-edge="top" title="Limite superior — vértice"></div>
-              <div class="ws-topo__line ws-topo__line--h ws-topo__line--range" id="ws-topo-bottom" data-edge="bottom" title="Limite inferior — base do crânio"></div>
-              <div class="ws-topo__line ws-topo__line--v ws-topo__line--fov" id="ws-topo-left" data-edge="left" title="FOV — limite anterior/posterior"></div>
-              <div class="ws-topo__line ws-topo__line--v ws-topo__line--fov" id="ws-topo-right" data-edge="right" title="FOV — limite anterior/posterior"></div>
+              <div class="ws-topo__line ws-topo__line--h ws-topo__line--fov" id="ws-topo-top" data-edge="top" title="FOV — limite anterior"></div>
+              <div class="ws-topo__line ws-topo__line--h ws-topo__line--fov" id="ws-topo-bottom" data-edge="bottom" title="FOV — limite posterior"></div>
+              <div class="ws-topo__line ws-topo__line--v ws-topo__line--range" id="ws-topo-left" data-edge="left" title="Limite da faixa — base do crânio"></div>
+              <div class="ws-topo__line ws-topo__line--v ws-topo__line--range" id="ws-topo-right" data-edge="right" title="Limite da faixa — vértice"></div>
             </div>
           </div>
           <span class="ws-viewer__placeholder" id="ws-viewer-placeholder">Exame não iniciado</span>
@@ -224,6 +224,10 @@
                 <label class="ws-field"><span class="ws-field__label">kV</span><input class="ws-input" id="ws-param-kv" type="text" placeholder="—" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">mAs</span><input class="ws-input" id="ws-param-mas" type="text" placeholder="—" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">Pitch</span><input class="ws-input" id="ws-param-pitch" type="text" placeholder="—" disabled></label>
+                <label class="ws-field"><span class="ws-field__label">Direção da varredura</span><select class="ws-input" id="ws-param-direcao" disabled>
+                  <option value="caudocranial">Caudo-cranial (mesa sai do gantry)</option>
+                  <option value="craniocaudal">Crânio-caudal (mesa entra no gantry)</option>
+                </select></label>
                 <label class="ws-field"><span class="ws-field__label">Colimação</span><input class="ws-input" id="ws-param-colim" type="text" placeholder="—" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">Esp. corte</span><input class="ws-input" id="ws-param-thick" type="text" placeholder="—" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">Kernel</span><input class="ws-input" id="ws-param-kernel" type="text" placeholder="—" disabled></label>
