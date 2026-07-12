@@ -1558,18 +1558,22 @@
                 " — reposicione a mesa antes de iniciar."
             };
           }
+          var startZ0 = tableZ;
           autoDrive = {
             targetZ: target,
-            startZ: tableZ,
+            startZ: startZ0,
             speed: Math.max(0.005, (opts.speedMmS || 50) / 1000),
             onProgress: opts.onProgress || null,
             onDone: opts.onDone || null,
             onAbort: opts.onAbort || null
           };
           setSpin(opts.rotTimeS || 0);
-          if (displayStatusEl) displayStatusEl.textContent = opts.rotTimeS > 0 ? "AQUISIÇÃO HELICOIDAL" : "TOPOGRAMA";
-          return { ok: true };
+          if (displayStatusEl) {
+            displayStatusEl.textContent = opts.label || (opts.rotTimeS > 0 ? "AQUISIÇÃO HELICOIDAL" : "TOPOGRAMA");
+          }
+          return { ok: true, startZ: startZ0, targetZ: target };
         },
+        getPos: function () { return tableZ; },
         stop: function () { abortAutoDrive("Aquisição interrompida pela workstation."); }
       };
 
@@ -2124,6 +2128,7 @@
     var counter = document.getElementById("ws-slice-counter");
     var startBtn = document.getElementById("ws-exam-start");
     var stopBtn = document.getElementById("ws-exam-stop");
+    var moveBtn = document.getElementById("ws-exam-move");
     var caption = document.getElementById("ws-viewer-caption");
     var topo = document.getElementById("ws-topo");
     var topoImg = document.getElementById("ws-topo-img");
@@ -2155,6 +2160,40 @@
     var TARGET = { top: [0, 16], bottom: [46, 70], left: [24, 44], right: [82, 98] };
     var MIN_GAP = 6; // % mínimo entre linhas opostas
     var lastSlice = 0; // último corte pintado na aquisição (p/ review)
+    // Referência espacial do topograma: onde a mesa ESTAVA quando cada
+    // ponto da imagem foi varrido. Permite ao MOVER levar a mesa de volta
+    // à posição inicial da faixa planejada (como no equipamento real).
+    var topoRef = null;   // { startZ (m), dir }
+    var atStart = false;  // mesa está na posição inicial da faixa?
+    var isMoving = false; // MOVER em andamento
+
+    // Posição (m) da mesa correspondente ao INÍCIO da faixa planejada.
+    // Mapa imagem→mesa: fração x da imagem (0=esquerda/base, 1=direita/
+    // vértice); caudo-cranial varre esquerda→direita com a mesa saindo;
+    // crânio-caudal varre direita→esquerda com a mesa entrando.
+    function volumeStartZ() {
+      if (!topoRef) return null;
+      var L = TOPO_LEN_MM / 1000;
+      if (topoRef.dir === "craniocaudal") {
+        var k0 = 1 - (boxState.right / 100); // progresso até o vértice planejado
+        return topoRef.startZ - L * k0;
+      }
+      return topoRef.startZ + L * (boxState.left / 100); // até a base planejada
+    }
+
+    // Ajusta o topograma para caber no quadrante preservando a proporção
+    // (o box das linhas casa exatamente com a imagem).
+    function fitTopo() {
+      if (!topo || topo.hidden || !box) return;
+      var natW = topoImg.naturalWidth || 814;
+      var natH = topoImg.naturalHeight || 700;
+      var r = box.getBoundingClientRect();
+      var availW = Math.max(60, r.width - 24);
+      var availH = Math.max(60, r.height - 24);
+      var s = Math.min(availW / natW, availH / natH);
+      topo.style.width = Math.max(1, Math.floor(natW * s)) + "px";
+      topo.style.height = Math.max(1, Math.floor(natH * s)) + "px";
+    }
 
     // Parâmetros do protocolo selecionado (direção, pitch, colimação) com
     // interpretação tolerante ("1,2", "64 × 0,6 mm", "40 mm"...).
@@ -2272,15 +2311,27 @@
       var probs = problems();
       var ok = probs.length === 0;
       if (topoBox) topoBox.classList.toggle("is-invalid", !ok);
-      if (phase === "plan") startBtn.disabled = !ok;
+      var gated = !!(tableDriveApi && topoRef); // com 3D: exige mesa em posição
+      if (phase === "plan") {
+        startBtn.disabled = !ok || isMoving || (gated && !atStart);
+        if (moveBtn) {
+          moveBtn.hidden = !gated;
+          moveBtn.disabled = !ok || isMoving;
+        }
+      }
       if (!readout) return;
       var cc = Math.max(0, boxState.right - boxState.left).toFixed(0);
       var ap = Math.max(0, boxState.bottom - boxState.top).toFixed(0);
       var pp = protocolParams();
       var dirTxt = pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)";
       var msg = "Faixa CC: " + cc + "% · FOV A-P: " + ap + "% · Direção: " + dirTxt + ". ";
+      var okMsg;
+      if (!(tableDriveApi && topoRef)) okMsg = "Posição válida — Iniciar libera a aquisição.";
+      else if (isMoving) okMsg = "Movendo a mesa para o início da faixa…";
+      else if (atStart) okMsg = "Mesa em posição — Iniciar libera a aquisição.";
+      else okMsg = "Faixa válida — use MOVER para levar a mesa ao início da varredura.";
       readout.innerHTML = ok
-        ? msg + "Posição válida — Iniciar libera a aquisição."
+        ? msg + okMsg
         : msg + "<span class=\"is-bad\">" + probs[0] + "</span>";
     }
 
@@ -2307,6 +2358,8 @@
           line.removeEventListener("pointermove", move);
           line.removeEventListener("pointerup", up);
           line.removeEventListener("pointercancel", up);
+          // Faixa mudou → a posição inicial mudou → exigir novo MOVER.
+          if (atStart) { atStart = false; renderReadout(); }
         }
         line.addEventListener("pointermove", move);
         line.addEventListener("pointerup", up);
@@ -2325,6 +2378,7 @@
     }
     function toIdle() {
       phase = "idle"; loaded = false; lastSlice = 0;
+      topoRef = null; atStart = false; isMoving = false;
       stopAnimations();
       img.hidden = true; ctrl.hidden = true;
       if (topo) topo.hidden = true;
@@ -2332,6 +2386,7 @@
       if (readout) readout.hidden = true;
       placeholder.hidden = false;
       startBtn.disabled = false; startBtn.textContent = "Iniciar";
+      if (moveBtn) moveBtn.hidden = true;
       if (stopBtn) stopBtn.disabled = true;
       counter.textContent = "—";
       topoImg.style.clipPath = "";
@@ -2359,6 +2414,7 @@
       startBtn.disabled = true; startBtn.textContent = "Adquirindo topograma…";
       if (stopBtn) stopBtn.disabled = false;
       setTopoClip(0);
+      fitTopo();
       soundStart("topo", 0);
       if (tableDriveApi) {
         var pp = protocolParams();
@@ -2378,9 +2434,12 @@
         if (!res.ok) {
           soundStop(); toIdle();
           showMessage(res.motivo, "warning");
+          return;
         }
+        topoRef = { startZ: res.startZ, dir: pp.direcao };
         return;
       }
+      topoRef = null; // fallback: sem sincronia com a mesa
       // Fallback (cena 3D indisponível): varredura por tempo, como antes.
       var t0 = performance.now();
       function frame(now) {
@@ -2401,9 +2460,59 @@
         boxState = { top: DEFAULT_BOX.top, bottom: DEFAULT_BOX.bottom, left: DEFAULT_BOX.left, right: DEFAULT_BOX.right };
       }
       startBtn.disabled = false; startBtn.textContent = "Iniciar";
+      atStart = false; isMoving = false;
+      fitTopo();
       applyBox(); renderReadout(); // renderReadout pode voltar a travar o Iniciar
       if (stopBtn) stopBtn.disabled = false;
       if (!keepBox) showMessage("Topograma adquirido — ajuste a faixa (base↔vértice) e o FOV, depois Iniciar.", "success");
+    }
+
+    // MOVER — leva a mesa 3D até a posição inicial da faixa planejada
+    // (como o comando de posicionamento do equipamento real). Só então o
+    // Iniciar libera o volume; mexer nas linhas exige mover de novo.
+    function onMove() {
+      if (phase !== "plan" || !tableDriveApi || isMoving) return;
+      if (problems().length) { renderReadout(); return; }
+      var zs = volumeStartZ();
+      if (zs == null) return;
+      var cur = tableDriveApi.getPos();
+      var distMm = Math.abs(zs - cur) * 1000;
+      if (distMm < 2) {
+        atStart = true; renderReadout();
+        showMessage("Mesa já está na posição inicial da faixa.", "info");
+        return;
+      }
+      isMoving = true;
+      renderReadout();
+      soundStart("topo", 0);
+      var res = tableDriveApi.start({
+        distanceMm: distMm,
+        direction: zs < cur ? "in" : "out",
+        speedMmS: 100,
+        rotTimeS: 0,
+        label: "POSICIONANDO MESA",
+        onDone: function () {
+          soundStop(); isMoving = false;
+          // Se as linhas mudaram durante o movimento, a posição já não vale.
+          var alvo = volumeStartZ();
+          atStart = alvo != null && Math.abs(tableDriveApi.getPos() - alvo) * 1000 < 3;
+          renderReadout();
+          showMessage(atStart
+            ? "Mesa na posição inicial da faixa — Iniciar libera a aquisição."
+            : "A faixa foi alterada durante o movimento — use MOVER novamente.", atStart ? "success" : "warning");
+        },
+        onAbort: function (motivo) {
+          if (phase !== "plan") return;
+          soundStop(); isMoving = false; atStart = false;
+          renderReadout();
+          showMessage("Movimentação interrompida: " + motivo, "warning");
+        }
+      });
+      if (!res.ok) {
+        soundStop(); isMoving = false;
+        renderReadout();
+        showMessage(res.motivo, "warning");
+      }
     }
 
     // Volume HELICOIDAL com física real: a mesa 3D avança continuamente
@@ -2419,6 +2528,7 @@
       img.hidden = false; ctrl.hidden = false;
       slider.disabled = true;
       startBtn.disabled = true; startBtn.textContent = "Adquirindo volume…";
+      if (moveBtn) moveBtn.hidden = true;
       if (stopBtn) stopBtn.disabled = false;
       var total = manifest.cortes;
       var pp = protocolParams();
@@ -2492,6 +2602,10 @@
     function onStart() {
       if (phase === "plan") {
         if (problems().length) { renderReadout(); return; }
+        if (tableDriveApi && topoRef && !atStart) {
+          showMessage("Use MOVER para levar a mesa à posição inicial da faixa antes de iniciar.", "warning");
+          return;
+        }
         toVolAcq();
         return;
       }
@@ -2547,6 +2661,9 @@
 
     startBtn.addEventListener("click", onStart);
     if (stopBtn) stopBtn.addEventListener("click", onStop);
+    if (moveBtn) moveBtn.addEventListener("click", onMove);
+    topoImg.addEventListener("load", fitTopo);
+    window.addEventListener("resize", fitTopo);
   }
 
   // =================================================================

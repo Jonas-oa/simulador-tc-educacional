@@ -937,8 +937,10 @@ body.is-mobile.mob-aq .dash-pane__body { overflow: visible; }
    Range = superior/inferior (base↔vértice); FOV = anterior/posterior.
    Posições em % via CSS vars no #ws-topo-box; linhas arrastáveis (JS).
    ===================================================================== */
-.ws-topo { position: relative; display: inline-block; max-width: 100%; max-height: 100%; line-height: 0; }
-.ws-topo__img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; -webkit-user-drag: none; user-select: none; }
+/* Dimensões definidas por JS (fitTopo) para caber SEMPRE no quadrante,
+   preservando a proporção — o box das linhas casa exatamente com a imagem. */
+.ws-topo { position: relative; line-height: 0; }
+.ws-topo__img { display: block; width: 100%; height: 100%; -webkit-user-drag: none; user-select: none; }
 .ws-topo__box {
   position: absolute; inset: 0;
   /* Topograma HORIZONTAL (decúbito dorsal, vértice à direita):

@@ -100,6 +100,14 @@ etapa futura)
 - Tema claro/escuro. Layout mobile (vertical) otimizado; barra de
   status com indicadores dinâmicos; painel de mensagens.
 
+**Aquisição — refinamentos (revisão 2026-07b)**
+- Topograma dimensionado por JS (fitTopo) para caber sempre no quadrante,
+  em qualquer proporção, com o box das linhas casando com a imagem.
+- Botão MOVER (fase de planejamento): leva a mesa 3D à posição inicial da
+  faixa planejada (mapa imagem→posição da mesa via referência espacial do
+  topograma). Iniciar só libera com faixa válida E mesa em posição; mexer
+  nas linhas exige mover de novo. Display mostra "POSICIONANDO MESA".
+
 **Aquisição integrada ao 3D (revisão 2026-07)**
 - Física real implementada: no topograma o tubo fica estacionário e a
   MESA 3D translada o paciente pelo gantry — a imagem (agora HORIZONTAL,
