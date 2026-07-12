@@ -920,3 +920,41 @@ body.is-mobile.mob-aq #pane-proto { display: flex; order: 2; }
 body.is-mobile.mob-aq #pane-acq { display: flex; order: 3; }
 body.is-mobile.mob-aq .dash-pane { flex: 0 0 auto; overflow: visible; }
 body.is-mobile.mob-aq .dash-pane__body { overflow: visible; }
+
+/* =====================================================================
+   ETAPA F — Topograma + caixa de planejamento (4 linhas: range + FOV)
+   Range = superior/inferior (base↔vértice); FOV = anterior/posterior.
+   Posições em % via CSS vars no #ws-topo-box; linhas arrastáveis (JS).
+   ===================================================================== */
+.ws-topo { position: relative; display: inline-block; height: 100%; line-height: 0; }
+.ws-topo__img { display: block; height: 100%; width: auto; max-width: 100%; -webkit-user-drag: none; user-select: none; }
+.ws-topo__box {
+  position: absolute; inset: 0;
+  --range-top: 7%; --range-bottom: 66%; --fov-left: 6%; --fov-right: 58%;
+}
+.ws-topo__rect {
+  position: absolute; pointer-events: none;
+  top: var(--range-top); bottom: calc(100% - var(--range-bottom));
+  left: var(--fov-left); right: calc(100% - var(--fov-right));
+  border: 1px dashed rgba(120, 200, 255, 0.55);
+  background: rgba(120, 200, 255, 0.06);
+}
+.ws-topo__line { position: absolute; touch-action: none; z-index: 2; }
+.ws-topo__line--h { left: 0; right: 0; height: 18px; margin-top: -9px; cursor: ns-resize; }
+.ws-topo__line--v { top: 0; bottom: 0; width: 18px; margin-left: -9px; cursor: ew-resize; }
+.ws-topo__line::before { content: ""; position: absolute; opacity: 0.92; }
+.ws-topo__line--h::before { left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; }
+.ws-topo__line--v::before { top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; }
+.ws-topo__line--range::before { background: var(--accent-cyan); }
+.ws-topo__line--fov::before { background: var(--accent-amber); }
+#ws-topo-top { top: var(--range-top); }
+#ws-topo-bottom { top: var(--range-bottom); }
+#ws-topo-left { left: var(--fov-left); }
+#ws-topo-right { left: var(--fov-right); }
+.ws-topo__box.is-invalid .ws-topo__rect { border-color: var(--accent-red); background: rgba(255, 80, 80, 0.08); }
+
+.ws-topo-readout {
+  margin: 6px 0 0; font-size: 0.78rem; line-height: 1.35;
+  color: var(--text-secondary, #9aa6b2);
+}
+.ws-topo-readout .is-bad { color: var(--accent-red); }

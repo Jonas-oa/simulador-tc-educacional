@@ -140,14 +140,26 @@
           <h3 class="ws-card__title">Imagens</h3>
           <div class="ws-viewer" id="ws-slice-viewer">
             <img id="ws-slice-img" class="ws-viewer__img" alt="Corte axial de TC de crânio" hidden>
+            <div class="ws-topo" id="ws-topo" hidden>
+              <img id="ws-topo-img" class="ws-topo__img" alt="Topograma lateral de crânio">
+              <div class="ws-topo__box" id="ws-topo-box" aria-hidden="true">
+                <div class="ws-topo__rect" id="ws-topo-rect"></div>
+                <div class="ws-topo__line ws-topo__line--h ws-topo__line--range" id="ws-topo-top" data-edge="top" title="Limite superior — vértice"></div>
+                <div class="ws-topo__line ws-topo__line--h ws-topo__line--range" id="ws-topo-bottom" data-edge="bottom" title="Limite inferior — base do crânio"></div>
+                <div class="ws-topo__line ws-topo__line--v ws-topo__line--fov" id="ws-topo-left" data-edge="left" title="FOV — limite anterior/posterior"></div>
+                <div class="ws-topo__line ws-topo__line--v ws-topo__line--fov" id="ws-topo-right" data-edge="right" title="FOV — limite anterior/posterior"></div>
+              </div>
+            </div>
             <span class="ws-viewer__placeholder" id="ws-viewer-placeholder">Exame não iniciado</span>
           </div>
+          <p class="ws-topo-readout" id="ws-topo-readout" hidden></p>
           <div class="ws-viewer-ctrl" id="ws-viewer-ctrl" hidden>
             <input type="range" id="ws-slice-slider" min="0" max="0" value="0" step="1" aria-label="Navegar cortes">
             <span class="ws-slice-counter" id="ws-slice-counter">—</span>
           </div>
           <div class="ws-actions">
             <button class="ws-btn ws-btn--primary" id="ws-exam-start" type="button">Iniciar exame</button>
+            <button class="ws-btn ws-btn--primary" id="ws-exam-confirm" type="button" hidden>Confirmar faixa</button>
             <button class="ws-btn ws-btn--ghost" id="ws-exam-cancel" type="button" hidden>Cancelar</button>
           </div>
           <p class="ws-note" id="ws-viewer-caption">Ao iniciar: volume real anonimizado de TC de crânio, de licença livre. A janela é apenas de exibição — não constitui interpretação diagnóstica.</p>

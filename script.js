@@ -1949,13 +1949,27 @@
     var slider = document.getElementById("ws-slice-slider");
     var counter = document.getElementById("ws-slice-counter");
     var startBtn = document.getElementById("ws-exam-start");
+    var confirmBtn = document.getElementById("ws-exam-confirm");
     var cancelBtn = document.getElementById("ws-exam-cancel");
     var caption = document.getElementById("ws-viewer-caption");
+    var topo = document.getElementById("ws-topo");
+    var topoImg = document.getElementById("ws-topo-img");
+    var topoBox = document.getElementById("ws-topo-box");
+    var readout = document.getElementById("ws-topo-readout");
+    var lines = topoBox ? topoBox.querySelectorAll(".ws-topo__line") : [];
     if (!box || !img || !slider || !startBtn) return;
 
     var BASE = "assets/volumes/cranio/";
     var manifest = null;
     var loaded = false;
+    var phase = "idle"; // idle | topo | axial
+
+    // Caixa de planejamento (%). Zonas-alvo calibradas PARA ESTE topograma
+    // (asset fixo) — didáticas, ajustáveis. range = base↔vértice; FOV = A/P.
+    var DEFAULT_BOX = { top: 7, bottom: 66, left: 6, right: 58 };
+    var boxState = { top: 7, bottom: 66, left: 6, right: 58 };
+    var TARGET = { top: [2, 18], bottom: [56, 76], left: [0, 16], right: [46, 70] };
+    var MIN_GAP = 6; // % mínimo entre linhas opostas
 
     function pad3(n) { n = String(n); while (n.length < 3) n = "0" + n; return n; }
     function srcFor(i) { return BASE + "axial_" + pad3(i) + ".png"; }
@@ -1969,6 +1983,104 @@
       counter.textContent = "Corte " + (i + 1) + " / " + manifest.cortes;
     }
 
+    // ---- caixa: render, validação, readout ----
+    function applyBox() {
+      if (!topoBox) return;
+      topoBox.style.setProperty("--range-top", boxState.top + "%");
+      topoBox.style.setProperty("--range-bottom", boxState.bottom + "%");
+      topoBox.style.setProperty("--fov-left", boxState.left + "%");
+      topoBox.style.setProperty("--fov-right", boxState.right + "%");
+    }
+    function inZone(v, z) { return v >= z[0] && v <= z[1]; }
+    function problems() {
+      var p = [];
+      if (boxState.bottom - boxState.top < MIN_GAP) p.push("O limite superior (vértice) deve ficar acima do inferior (base).");
+      else if (!inZone(boxState.top, TARGET.top)) p.push("Leve o limite superior até o vértice.");
+      else if (!inZone(boxState.bottom, TARGET.bottom)) p.push("Leve o limite inferior até a base do crânio.");
+      if (boxState.right - boxState.left < MIN_GAP) p.push("O FOV está invertido ou muito estreito.");
+      else if (!inZone(boxState.left, TARGET.left) || !inZone(boxState.right, TARGET.right)) p.push("Ajuste o FOV para cobrir o crânio.");
+      return p;
+    }
+    function renderReadout() {
+      var probs = problems();
+      var ok = probs.length === 0;
+      if (topoBox) topoBox.classList.toggle("is-invalid", !ok);
+      if (confirmBtn) confirmBtn.disabled = !ok;
+      if (!readout) return;
+      var cc = Math.max(0, boxState.bottom - boxState.top).toFixed(0);
+      var ap = Math.max(0, boxState.right - boxState.left).toFixed(0);
+      var msg = "Faixa CC (base→vértice): " + cc + "% · FOV A-P: " + ap + "% da imagem. ";
+      readout.innerHTML = ok
+        ? msg + "Posição válida — pode confirmar."
+        : msg + "<span class=\"is-bad\">" + probs[0] + "</span>";
+    }
+
+    // ---- arraste das 4 linhas ----
+    function pctFromEvent(e, axis) {
+      var r = topoImg.getBoundingClientRect();
+      if (axis === "y") return ((e.clientY - r.top) / r.height) * 100;
+      return ((e.clientX - r.left) / r.width) * 100;
+    }
+    function clampPct(v) { return Math.min(100, Math.max(0, v)); }
+    Array.prototype.forEach.call(lines, function (line) {
+      var edge = line.getAttribute("data-edge");
+      var axis = (edge === "top" || edge === "bottom") ? "y" : "x";
+      line.addEventListener("pointerdown", function (e) {
+        if (phase !== "topo") return;
+        e.preventDefault(); e.stopPropagation();
+        try { line.setPointerCapture(e.pointerId); } catch (err) {}
+        function move(ev) {
+          boxState[edge] = clampPct(pctFromEvent(ev, axis)); // não impede cruzamento — validação bloqueia
+          applyBox(); renderReadout();
+        }
+        function up() {
+          try { line.releasePointerCapture(e.pointerId); } catch (err) {}
+          line.removeEventListener("pointermove", move);
+          line.removeEventListener("pointerup", up);
+          line.removeEventListener("pointercancel", up);
+        }
+        line.addEventListener("pointermove", move);
+        line.addEventListener("pointerup", up);
+        line.addEventListener("pointercancel", up);
+      });
+    });
+
+    // ---- fases ----
+    function setButtons() {
+      startBtn.hidden = (phase !== "idle");
+      if (confirmBtn) confirmBtn.hidden = (phase !== "topo");
+      if (cancelBtn) cancelBtn.hidden = (phase === "idle");
+    }
+    function toIdle() {
+      phase = "idle"; loaded = false;
+      img.hidden = true; ctrl.hidden = true;
+      if (topo) topo.hidden = true;
+      if (readout) readout.hidden = true;
+      placeholder.hidden = false;
+      startBtn.disabled = false; startBtn.textContent = "Iniciar exame";
+      setButtons();
+    }
+    function toTopo() {
+      phase = "topo";
+      placeholder.hidden = true;
+      img.hidden = true; ctrl.hidden = true;
+      if (topo) topo.hidden = false;
+      if (readout) readout.hidden = false;
+      boxState = { top: DEFAULT_BOX.top, bottom: DEFAULT_BOX.bottom, left: DEFAULT_BOX.left, right: DEFAULT_BOX.right };
+      applyBox(); renderReadout();
+      startBtn.disabled = false; startBtn.textContent = "Iniciar exame";
+      setButtons();
+    }
+    function toAxial() {
+      phase = "axial"; loaded = true;
+      if (topo) topo.hidden = true;
+      if (readout) readout.hidden = true;
+      placeholder.hidden = true;
+      img.hidden = false; ctrl.hidden = false;
+      show(Math.floor(manifest.cortes / 2));
+      setButtons();
+    }
+
     slider.addEventListener("input", function () { if (loaded) show(parseInt(slider.value, 10) || 0); });
     box.addEventListener("wheel", function (e) {
       if (!loaded) return;
@@ -1976,35 +2088,11 @@
       show((parseInt(slider.value, 10) || 0) + (e.deltaY > 0 ? 1 : -1));
     }, { passive: false });
 
-    function reveal() {
-      placeholder.hidden = true;
-      img.hidden = false;
-      ctrl.hidden = false;
-      loaded = true;
-      show(Math.floor(manifest.cortes / 2));
-      startBtn.hidden = true;
-      startBtn.disabled = false;
-      startBtn.textContent = "Iniciar exame";
-      if (cancelBtn) cancelBtn.hidden = false;
-    }
-
-    function resetExam() {
-      loaded = false;
-      img.hidden = true;
-      ctrl.hidden = true;
-      placeholder.hidden = false;
-      startBtn.hidden = false;
-      startBtn.disabled = false;
-      startBtn.textContent = "Iniciar exame";
-      if (cancelBtn) cancelBtn.hidden = true;
-    }
-
-    startBtn.addEventListener("click", function () {
-      if (loaded) return;
-      // Se o manifesto já foi buscado antes, reinicia sem nova requisição.
-      if (manifest) { reveal(); return; }
+    function startExam() {
+      if (phase !== "idle") return;
+      if (manifest) { topoImg.src = BASE + (manifest.topograma || "topograma.png"); toTopo(); return; }
       startBtn.disabled = true;
-      startBtn.textContent = "Iniciando…";
+      startBtn.textContent = "Adquirindo topograma…";
       fetch(BASE + "manifest.json").then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
@@ -2013,21 +2101,28 @@
         slider.min = 0;
         slider.max = m.cortes - 1;
         if (caption && m.fonte) {
-          caption.textContent = "Volume real de TC de crânio (" + m.fonte.nome + "). " + m.fonte.licenca +
-            " Janela de exibição WL " + m.janela_exibicao.wl + " / WW " + m.janela_exibicao.ww +
-            " — apenas visualização, sem interpretação diagnóstica.";
+          caption.textContent = "Topograma ilustrativo (paciente distinto do volume) para planejar a faixa. Volume axial real de TC de crânio (" +
+            m.fonte.nome + "). " + m.fonte.licenca + " Apenas visualização — sem interpretação diagnóstica.";
         }
-        reveal();
-        showMessage("Exame iniciado (" + m.cortes + " cortes).", "success");
+        topoImg.src = BASE + (m.topograma || "topograma.png");
+        toTopo();
+        showMessage("Topograma adquirido — ajuste a faixa (base→vértice) e o FOV.", "success");
       }).catch(function (err) {
         startBtn.disabled = false;
         startBtn.textContent = "Iniciar exame";
-        showMessage("Falha ao iniciar o exame: " + err.message, "error");
+        showMessage("Falha ao adquirir o topograma: " + err.message, "error");
       });
-    });
+    }
 
+    startBtn.addEventListener("click", startExam);
+    if (confirmBtn) confirmBtn.addEventListener("click", function () {
+      if (phase !== "topo") return;
+      if (problems().length) { showMessage("Ajuste a faixa antes de confirmar.", "warning"); return; }
+      toAxial();
+      showMessage("Faixa confirmada — aquisição axial (" + manifest.cortes + " cortes).", "success");
+    });
     if (cancelBtn) cancelBtn.addEventListener("click", function () {
-      resetExam();
+      toIdle();
       showMessage("Exame cancelado.", "info");
     });
   }
