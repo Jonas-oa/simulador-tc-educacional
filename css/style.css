@@ -831,7 +831,7 @@ body {
 
 /* Modelo do corpo + lista de protocolos por região (quadrante inf. direito) */
 .proto2 { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; }
-@media (max-width: 560px) { .proto2 { grid-template-columns: 1fr; justify-items: center; } }
+@media (max-width: 560px) { .proto2 { gap: 8px; } .bodymap { width: 84px; } }
 .proto2__model { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .bodymap { width: 96px; height: auto; display: block; }
 .bodymap__zone { fill: var(--bg-panel-raised); stroke: var(--border-strong); stroke-width: 1; transition: fill .15s, stroke .15s; }

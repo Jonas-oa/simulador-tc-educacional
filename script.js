@@ -1652,6 +1652,8 @@
   // Ponte entre cadastro e aquisição: UM exame por vez, sem memória —
   // ao encerrar a simulação o registro do paciente é apagado.
   var examSessionApi = null;
+  // Protocolo selecionado para o exame (nome exibido na tela de aquisição).
+  var examProtocol = { name: "", refresh: null };
 
   function initPatients() {
     var fPront = document.getElementById("pac-prontuario");
@@ -1693,11 +1695,14 @@
         meta.textContent = "Cadastre o paciente para iniciar";
       } else {
         nm.textContent = p.nome + (p.prontuario ? " · " + p.prontuario : "");
-        meta.textContent = [p.regiao, p.idade ? p.idade + " anos" : "", p.sexo].filter(Boolean).join(" · ") || "Em exame";
+        var parts = [p.regiao, p.idade ? p.idade + " anos" : "", p.sexo].filter(Boolean);
+        if (examProtocol.name) parts.push("Prot.: " + examProtocol.name);
+        meta.textContent = parts.join(" · ") || "Em exame";
       }
       li.appendChild(nm); li.appendChild(meta);
       examList.appendChild(li);
     }
+    examProtocol.refresh = renderExamList;
 
     // API usada pelo viewer: um exame por vez; encerrar apaga o registro.
     examSessionApi = {
@@ -1790,7 +1795,6 @@
     var actionsView = document.getElementById("ws-actions-view");
     var actionsEdit = document.getElementById("ws-actions-edit");
     var btnEdit = document.getElementById("ws-protocol-edit");
-    var btnDelete = document.getElementById("ws-protocol-delete");
     var btnSave = document.getElementById("ws-protocol-save");
     var btnCancel = document.getElementById("ws-protocol-cancel");
     var zones = document.querySelectorAll("[data-region]");
@@ -1830,13 +1834,47 @@
     }
     function applyCranioDefaultsIfBlank() {
       protocols.forEach(function (p) {
-        if ((p.id === "cranio" || p.regiao === "Crânio") && isClinicallyBlank(p)) {
+        if (p.id === "cranio" && isClinicallyBlank(p)) {
           var d = cranioDefaults();
           for (var k in d) { if (d.hasOwnProperty(k)) p[k] = d[k]; }
           if (!p.obs) p.obs = cranioObs();
           persist(p);
         }
       });
+    }
+
+    // Catálogo canônico de protocolos por região (fixos — NÃO podem ser
+    // apagados). Nomes didáticos definidos pelo operador; parâmetros dos
+    // demais ficam em branco até ele preencher/validar. ensureCatalog roda
+    // a cada carga: recria o que faltar e re-preenche o crânio se vier em
+    // branco (auto-recuperação contra estados antigos do banco).
+    var CATALOGO = [
+      { id: "cranio",   nome: "Crânio",           regiao: "Crânio" },
+      { id: "face",     nome: "Face",             regiao: "Crânio" },
+      { id: "saf",      nome: "Seios da face",    regiao: "Crânio" },
+      { id: "orbitas",  nome: "Órbitas",          regiao: "Crânio" },
+      { id: "atm",      nome: "ATM",              regiao: "Crânio" },
+      { id: "pescoco",  nome: "Pescoço",          regiao: "Pescoço" },
+      { id: "torax",    nome: "Tórax",            regiao: "Tórax" },
+      { id: "torax_ar", nome: "Tórax AR (HRCT)",  regiao: "Tórax" },
+      { id: "abd_total", nome: "Abdome total",    regiao: "Abdome" },
+      { id: "abd_sup",  nome: "Abdome superior",  regiao: "Abdome" },
+      { id: "pelve",    nome: "Pelve",            regiao: "Pelve" },
+      { id: "col_cerv", nome: "Coluna cervical",  regiao: "Coluna" },
+      { id: "col_tor",  nome: "Coluna torácica",  regiao: "Coluna" },
+      { id: "col_lomb", nome: "Coluna lombar",    regiao: "Coluna" },
+      { id: "memb_sup", nome: "Membro superior",  regiao: "Membros" },
+      { id: "memb_inf", nome: "Membro inferior",  regiao: "Membros" }
+    ];
+    function ensureCatalog() {
+      CATALOGO.forEach(function (c) {
+        if (!byId(c.id)) {
+          var novo = blank(c.id, c.nome, c.regiao);
+          protocols.push(novo);
+          persist(novo);
+        }
+      });
+      applyCranioDefaultsIfBlank();
     }
     function cranioSeed() {
       var p = blank("cranio", "Crânio", "Crânio");
@@ -1847,7 +1885,6 @@
     }
     function seedDefaults() { return [cranioSeed(), blank("torax", "Tórax", "Tórax")]; }
     function persist(o) { if (memoryFallback) return Promise.resolve(); return dbStorePut("protocolos", o).catch(function () { memoryFallback = true; }); }
-    function persistDelete(id) { if (memoryFallback) return Promise.resolve(); return dbStoreDel("protocolos", id).catch(function () { memoryFallback = true; }); }
 
     function inRegion() { return protocols.filter(function (p) { return p.regiao === currentRegion; }); }
     function byId(id) { for (var i = 0; i < protocols.length; i++) if (protocols[i].id === id) return protocols[i]; return null; }
@@ -1894,9 +1931,13 @@
     function selectProtocol(id) {
       currentId = id;
       renderList();
-      fillFields(byId(id));
+      var p = byId(id);
+      fillFields(p);
       editor.hidden = false;
       setMode("view");
+      // Este é o protocolo que será usado no exame (aparece na aquisição).
+      examProtocol.name = p ? p.nome : "";
+      if (examProtocol.refresh) examProtocol.refresh();
     }
 
     if (btnEdit) btnEdit.addEventListener("click", function () { if (currentId) setMode("edit"); });
@@ -1905,15 +1946,6 @@
       var p = byId(currentId); if (!p) { setMode("view"); return; }
       FIELDS.forEach(function (f) { var el = inputEl(f); if (el) p[FIELD_KEYS[f]] = el.value.trim(); });
       persist(p).then(function () { setMode("view"); showMessage("Protocolo \"" + p.nome + "\" salvo" + (memoryFallback ? " (temporário)." : "."), "success"); });
-    });
-    if (btnDelete) btnDelete.addEventListener("click", function () {
-      var p = byId(currentId); if (!p) return;
-      if (!window.confirm("Excluir o protocolo \"" + p.nome + "\"?")) return;
-      persistDelete(p.id).then(function () {
-        protocols = protocols.filter(function (x) { return x.id !== p.id; });
-        currentId = null; editor.hidden = true; renderList();
-        showMessage("Protocolo removido.", "info");
-      });
     });
     if (btnNew) btnNew.addEventListener("click", function () {
       if (!currentRegion) { showMessage("Selecione uma região no modelo primeiro.", "warning"); return; }
@@ -1943,7 +1975,7 @@
       return seedDefaults();
     }).then(function (list) {
       protocols = list;
-      applyCranioDefaultsIfBlank();
+      ensureCatalog();
       selectRegion("Crânio");
     });
   }
