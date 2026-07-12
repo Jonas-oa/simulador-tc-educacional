@@ -1649,6 +1649,10 @@
   // Os pacientes cadastrados alimentam a lista "Exames" da aquisição.
   // Nenhum dado clínico é presumido.
   // =================================================================
+  // Ponte entre cadastro e aquisição: UM exame por vez, sem memória —
+  // ao encerrar a simulação o registro do paciente é apagado.
+  var examSessionApi = null;
+
   function initPatients() {
     var fPront = document.getElementById("pac-prontuario");
     var fNome = document.getElementById("pac-nome");
@@ -1674,29 +1678,39 @@
     function persist(o) { if (memoryFallback) return Promise.resolve(); return dbStorePut("pacientes", o).catch(function () { memoryFallback = true; }); }
     function persistDel(id) { if (memoryFallback) return Promise.resolve(); return dbStoreDel("pacientes", id).catch(function () { memoryFallback = true; }); }
 
+    function currentPatient() { return pacientes.length ? pacientes[pacientes.length - 1] : null; }
+
     function renderExamList() {
       if (!examList) return;
       examList.innerHTML = "";
-      if (pacientes.length === 0) {
-        var li0 = document.createElement("li");
-        li0.className = "ws-list__item";
-        var n0 = document.createElement("span"); n0.className = "ws-list__name"; n0.textContent = "Nenhum paciente cadastrado";
-        var m0 = document.createElement("span"); m0.className = "ws-list__meta"; m0.textContent = "Cadastre no quadrante inferior esquerdo";
-        li0.appendChild(n0); li0.appendChild(m0);
-        examList.appendChild(li0);
-        return;
-      }
-      pacientes.forEach(function (p) {
-        var li = document.createElement("li");
-        li.className = "ws-list__item";
-        var nm = document.createElement("span"); nm.className = "ws-list__name";
+      var p = currentPatient();
+      var li = document.createElement("li");
+      li.className = "ws-list__item" + (p ? " ws-list__item--active" : "");
+      var nm = document.createElement("span"); nm.className = "ws-list__name";
+      var meta = document.createElement("span"); meta.className = "ws-list__meta";
+      if (!p) {
+        nm.textContent = "Nenhum paciente em exame";
+        meta.textContent = "Cadastre o paciente para iniciar";
+      } else {
         nm.textContent = p.nome + (p.prontuario ? " · " + p.prontuario : "");
-        var meta = document.createElement("span"); meta.className = "ws-list__meta";
-        meta.textContent = [p.regiao, p.idade ? p.idade + " anos" : "", p.sexo].filter(Boolean).join(" · ") || "Aguardando protocolo";
-        li.appendChild(nm); li.appendChild(meta);
-        examList.appendChild(li);
-      });
+        meta.textContent = [p.regiao, p.idade ? p.idade + " anos" : "", p.sexo].filter(Boolean).join(" · ") || "Em exame";
+      }
+      li.appendChild(nm); li.appendChild(meta);
+      examList.appendChild(li);
     }
+
+    // API usada pelo viewer: um exame por vez; encerrar apaga o registro.
+    examSessionApi = {
+      get: currentPatient,
+      end: function () {
+        var p = currentPatient();
+        if (!p) return Promise.resolve();
+        return persistDel(p.id).then(function () {
+          pacientes = pacientes.filter(function (x) { return x.id !== p.id; });
+          renderList(); renderExamList();
+        });
+      }
+    };
 
     function renderList() {
       listEl.innerHTML = "";
@@ -1949,8 +1963,7 @@
     var slider = document.getElementById("ws-slice-slider");
     var counter = document.getElementById("ws-slice-counter");
     var startBtn = document.getElementById("ws-exam-start");
-    var confirmBtn = document.getElementById("ws-exam-confirm");
-    var cancelBtn = document.getElementById("ws-exam-cancel");
+    var stopBtn = document.getElementById("ws-exam-stop");
     var caption = document.getElementById("ws-viewer-caption");
     var topo = document.getElementById("ws-topo");
     var topoImg = document.getElementById("ws-topo-img");
@@ -1962,7 +1975,12 @@
     var BASE = "assets/volumes/cranio/";
     var manifest = null;
     var loaded = false;
-    var phase = "idle"; // idle | topo | axial
+    // idle → topoAcq (varredura) → plan (linhas) → volAcq (mesa+cortes) → review
+    var phase = "idle";
+    var topoAnim = null;   // requestAnimationFrame da varredura do topograma
+    var volTimer = null;   // intervalo da aquisição corte a corte
+    var TOPO_MS = 4000;    // duração didática da varredura do topograma
+    var VOL_MS = 6500;     // duração didática da aquisição do volume
 
     // Caixa de planejamento (%). Zonas-alvo calibradas PARA ESTE topograma
     // (asset fixo) — didáticas, ajustáveis. range = base↔vértice; FOV = A/P.
@@ -2005,13 +2023,13 @@
       var probs = problems();
       var ok = probs.length === 0;
       if (topoBox) topoBox.classList.toggle("is-invalid", !ok);
-      if (confirmBtn) confirmBtn.disabled = !ok;
+      if (phase === "plan") startBtn.disabled = !ok;
       if (!readout) return;
       var cc = Math.max(0, boxState.bottom - boxState.top).toFixed(0);
       var ap = Math.max(0, boxState.right - boxState.left).toFixed(0);
       var msg = "Faixa CC (base→vértice): " + cc + "% · FOV A-P: " + ap + "% da imagem. ";
       readout.innerHTML = ok
-        ? msg + "Posição válida — pode confirmar."
+        ? msg + "Posição válida — Iniciar libera a aquisição."
         : msg + "<span class=\"is-bad\">" + probs[0] + "</span>";
     }
 
@@ -2026,7 +2044,7 @@
       var edge = line.getAttribute("data-edge");
       var axis = (edge === "top" || edge === "bottom") ? "y" : "x";
       line.addEventListener("pointerdown", function (e) {
-        if (phase !== "topo") return;
+        if (phase !== "plan") return;
         e.preventDefault(); e.stopPropagation();
         try { line.setPointerCapture(e.pointerId); } catch (err) {}
         function move(ev) {
@@ -2045,40 +2063,97 @@
       });
     });
 
-    // ---- fases ----
-    function setButtons() {
-      startBtn.hidden = (phase !== "idle");
-      if (confirmBtn) confirmBtn.hidden = (phase !== "topo");
-      if (cancelBtn) cancelBtn.hidden = (phase === "idle");
+    // ---- fases e animações ----
+    function stopAnimations() {
+      if (topoAnim) { cancelAnimationFrame(topoAnim); topoAnim = null; }
+      if (volTimer) { clearInterval(volTimer); volTimer = null; }
     }
     function toIdle() {
+      stopAnimations();
       phase = "idle"; loaded = false;
       img.hidden = true; ctrl.hidden = true;
       if (topo) topo.hidden = true;
+      if (topoBox) topoBox.hidden = true;
       if (readout) readout.hidden = true;
       placeholder.hidden = false;
-      startBtn.disabled = false; startBtn.textContent = "Iniciar exame";
-      setButtons();
+      startBtn.disabled = false; startBtn.textContent = "Iniciar";
+      if (stopBtn) stopBtn.disabled = true;
+      counter.textContent = "—";
+      topoImg.style.clipPath = "";
     }
-    function toTopo() {
-      phase = "topo";
+
+    // Item 3 — topograma NÃO é instantâneo: revela de cima p/ baixo (~4 s),
+    // como a varredura com a mesa em movimento contínuo e o tubo travado.
+    function toTopoAcq() {
+      phase = "topoAcq";
       placeholder.hidden = true;
       img.hidden = true; ctrl.hidden = true;
       if (topo) topo.hidden = false;
+      if (topoBox) topoBox.hidden = true;   // linhas só após completar
+      if (readout) readout.hidden = true;
+      startBtn.disabled = true; startBtn.textContent = "Adquirindo topograma…";
+      if (stopBtn) stopBtn.disabled = false;
+      topoImg.style.clipPath = "inset(0 0 100% 0)";
+      var t0 = performance.now();
+      function frame(now) {
+        var k = Math.min(1, (now - t0) / TOPO_MS);
+        topoImg.style.clipPath = "inset(0 0 " + ((1 - k) * 100).toFixed(2) + "% 0)";
+        if (k < 1) { topoAnim = requestAnimationFrame(frame); }
+        else { topoAnim = null; toPlan(); }
+      }
+      topoAnim = requestAnimationFrame(frame);
+    }
+
+    function toPlan() {
+      phase = "plan";
+      topoImg.style.clipPath = "";
+      if (topoBox) topoBox.hidden = false;
       if (readout) readout.hidden = false;
       boxState = { top: DEFAULT_BOX.top, bottom: DEFAULT_BOX.bottom, left: DEFAULT_BOX.left, right: DEFAULT_BOX.right };
       applyBox(); renderReadout();
-      startBtn.disabled = false; startBtn.textContent = "Iniciar exame";
-      setButtons();
+      startBtn.textContent = "Iniciar";
+      if (stopBtn) stopBtn.disabled = false;
+      showMessage("Topograma adquirido — ajuste faixa (base→vértice) e FOV, depois Iniciar.", "success");
     }
-    function toAxial() {
-      phase = "axial"; loaded = true;
+
+    // Item 4 — volume aparece gradativamente, corte a corte, simulando a
+    // mesa avançando pelo gantry durante a aquisição.
+    function toVolAcq() {
+      phase = "volAcq"; loaded = false;
       if (topo) topo.hidden = true;
       if (readout) readout.hidden = true;
-      placeholder.hidden = true;
       img.hidden = false; ctrl.hidden = false;
-      show(Math.floor(manifest.cortes / 2));
-      setButtons();
+      slider.disabled = true;
+      startBtn.disabled = true; startBtn.textContent = "Adquirindo volume…";
+      if (stopBtn) stopBtn.disabled = false;
+      var total = manifest.cortes;
+      var i = 0;
+      var stepMs = Math.max(30, Math.round(VOL_MS / total));
+      // exibição manual durante a aquisição (loaded=false bloqueia slider/roda)
+      function paint(n) {
+        img.src = srcFor(n);
+        slider.value = n;
+        counter.textContent = "Adquirindo… corte " + (n + 1) + " / " + total;
+      }
+      paint(0);
+      volTimer = setInterval(function () {
+        i++;
+        if (i >= total) {
+          clearInterval(volTimer); volTimer = null;
+          toReview();
+          return;
+        }
+        paint(i);
+      }, stepMs);
+    }
+
+    function toReview() {
+      phase = "review"; loaded = true;
+      slider.disabled = false;
+      startBtn.disabled = true; startBtn.textContent = "Exame adquirido";
+      if (stopBtn) stopBtn.disabled = false;
+      show(manifest.cortes - 1);
+      showMessage("Aquisição concluída (" + manifest.cortes + " cortes). Navegue e finalize com Stop.", "success");
     }
 
     slider.addEventListener("input", function () { if (loaded) show(parseInt(slider.value, 10) || 0); });
@@ -2088,11 +2163,26 @@
       show((parseInt(slider.value, 10) || 0) + (e.deltaY > 0 ? 1 : -1));
     }, { passive: false });
 
-    function startExam() {
+    // Iniciar é contextual: em idle adquire o topograma; em plan (com a
+    // caixa válida — senão fica travado) inicia a aquisição do volume.
+    function onStart() {
+      if (phase === "plan") {
+        if (problems().length) { renderReadout(); return; }
+        toVolAcq();
+        return;
+      }
       if (phase !== "idle") return;
-      if (manifest) { topoImg.src = BASE + (manifest.topograma || "topograma.png"); toTopo(); return; }
+      if (examSessionApi && !examSessionApi.get()) {
+        showMessage("Cadastre o paciente antes de iniciar o exame.", "warning");
+        return;
+      }
+      if (manifest) {
+        topoImg.src = BASE + (manifest.topograma || "topograma.png");
+        toTopoAcq();
+        return;
+      }
       startBtn.disabled = true;
-      startBtn.textContent = "Adquirindo topograma…";
+      startBtn.textContent = "Preparando…";
       fetch(BASE + "manifest.json").then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
@@ -2105,26 +2195,30 @@
             m.fonte.nome + "). " + m.fonte.licenca + " Apenas visualização — sem interpretação diagnóstica.";
         }
         topoImg.src = BASE + (m.topograma || "topograma.png");
-        toTopo();
-        showMessage("Topograma adquirido — ajuste a faixa (base→vértice) e o FOV.", "success");
+        toTopoAcq();
       }).catch(function (err) {
         startBtn.disabled = false;
-        startBtn.textContent = "Iniciar exame";
-        showMessage("Falha ao adquirir o topograma: " + err.message, "error");
+        startBtn.textContent = "Iniciar";
+        showMessage("Falha ao preparar o exame: " + err.message, "error");
       });
     }
 
-    startBtn.addEventListener("click", startExam);
-    if (confirmBtn) confirmBtn.addEventListener("click", function () {
-      if (phase !== "topo") return;
-      if (problems().length) { showMessage("Ajuste a faixa antes de confirmar.", "warning"); return; }
-      toAxial();
-      showMessage("Faixa confirmada — aquisição axial (" + manifest.cortes + " cortes).", "success");
-    });
-    if (cancelBtn) cancelBtn.addEventListener("click", function () {
+    // Stop encerra a simulação em QUALQUER fase e apaga o registro do
+    // paciente (um exame por vez, sem memória entre simulações).
+    function onStop() {
+      if (phase === "idle") return;
+      var wasDone = (phase === "review");
       toIdle();
-      showMessage("Exame cancelado.", "info");
-    });
+      var finish = (examSessionApi && examSessionApi.end) ? examSessionApi.end() : Promise.resolve();
+      finish.then(function () {
+        showMessage(wasDone
+          ? "Exame finalizado — registro do paciente removido."
+          : "Exame interrompido — registro do paciente removido.", "info");
+      });
+    }
+
+    startBtn.addEventListener("click", onStart);
+    if (stopBtn) stopBtn.addEventListener("click", onStop);
   }
 
   // =================================================================

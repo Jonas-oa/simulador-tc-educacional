@@ -129,10 +129,7 @@
       <div class="dash-pane__body">
         <section class="ws-card ws__patients" aria-label="Lista de exames">
           <h3 class="ws-card__title">Exames</h3>
-          <ul class="ws-list" id="ws-patient-list">
-            <li class="ws-list__item ws-list__item--active"><span class="ws-list__name">Paciente demonstração 01</span><span class="ws-list__meta">Aguardando protocolo</span></li>
-            <li class="ws-list__item"><span class="ws-list__name">Paciente demonstração 02</span><span class="ws-list__meta">Aguardando protocolo</span></li>
-          </ul>
+          <ul class="ws-list" id="ws-patient-list"></ul>
           <p class="ws-note">Lista fictícia, somente para dar contexto ao treinamento.</p>
         </section>
 
@@ -158,9 +155,8 @@
             <span class="ws-slice-counter" id="ws-slice-counter">—</span>
           </div>
           <div class="ws-actions">
-            <button class="ws-btn ws-btn--primary" id="ws-exam-start" type="button">Iniciar exame</button>
-            <button class="ws-btn ws-btn--primary" id="ws-exam-confirm" type="button" hidden>Confirmar faixa</button>
-            <button class="ws-btn ws-btn--ghost" id="ws-exam-cancel" type="button" hidden>Cancelar</button>
+            <button class="ws-btn ws-btn--primary" id="ws-exam-start" type="button">Iniciar</button>
+            <button class="ws-btn ws-btn--danger" id="ws-exam-stop" type="button" disabled>Stop</button>
           </div>
           <p class="ws-note" id="ws-viewer-caption">Ao iniciar: volume real anonimizado de TC de crânio, de licença livre. A janela é apenas de exibição — não constitui interpretação diagnóstica.</p>
         </section>
