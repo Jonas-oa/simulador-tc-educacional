@@ -1797,6 +1797,9 @@
     var btnEdit = document.getElementById("ws-protocol-edit");
     var btnSave = document.getElementById("ws-protocol-save");
     var btnCancel = document.getElementById("ws-protocol-cancel");
+    // Layout PC — editor em quadrante inteiro (classe is-editing no pane)
+    var protoPane = document.getElementById("pane-proto");
+    var editorTitle = document.getElementById("proto-editor-title");
     var zones = document.querySelectorAll("[data-region]");
     if (!listEl || !editor || !regionLabel) return;
 
@@ -1905,6 +1908,23 @@
       if (actionsEdit) actionsEdit.hidden = !editing;
     }
 
+    // Editor ocupa o quadrante inteiro (esconde mapa/lista via is-editing);
+    // Salvar/Cancelar voltam à visão padrão. Evita a barra de rolagem.
+    function openEditor() {
+      var p = byId(currentId);
+      if (!p) return;
+      fillFields(p);
+      if (editorTitle) editorTitle.textContent = p.nome + " — " + p.regiao;
+      editor.hidden = false;
+      if (protoPane) protoPane.classList.add("is-editing");
+      setMode("edit");
+    }
+    function closeEditor() {
+      editor.hidden = true;
+      if (protoPane) protoPane.classList.remove("is-editing");
+      setMode("view");
+    }
+
     function renderList() {
       listEl.innerHTML = "";
       var items = inRegion();
@@ -1924,8 +1944,8 @@
       highlightZones();
       regionLabel.textContent = region;
       if (btnNew) btnNew.hidden = false;
-      editor.hidden = true;
-      setMode("view");
+      if (btnEdit) btnEdit.hidden = true;
+      closeEditor();
       renderList();
     }
     function selectProtocol(id) {
@@ -1933,19 +1953,19 @@
       renderList();
       var p = byId(id);
       fillFields(p);
-      editor.hidden = false;
-      setMode("view");
+      // O editor só abre pelo botão Editar (quadrante inteiro).
+      if (btnEdit) btnEdit.hidden = !p;
       // Este é o protocolo que será usado no exame (aparece na aquisição).
       examProtocol.name = p ? p.nome : "";
       if (examProtocol.refresh) examProtocol.refresh();
     }
 
-    if (btnEdit) btnEdit.addEventListener("click", function () { if (currentId) setMode("edit"); });
-    if (btnCancel) btnCancel.addEventListener("click", function () { setMode("view"); fillFields(byId(currentId)); });
+    if (btnEdit) btnEdit.addEventListener("click", function () { if (currentId) openEditor(); });
+    if (btnCancel) btnCancel.addEventListener("click", function () { fillFields(byId(currentId)); closeEditor(); });
     if (btnSave) btnSave.addEventListener("click", function () {
-      var p = byId(currentId); if (!p) { setMode("view"); return; }
+      var p = byId(currentId); if (!p) { closeEditor(); return; }
       FIELDS.forEach(function (f) { var el = inputEl(f); if (el) p[FIELD_KEYS[f]] = el.value.trim(); });
-      persist(p).then(function () { setMode("view"); showMessage("Protocolo \"" + p.nome + "\" salvo" + (memoryFallback ? " (temporário)." : "."), "success"); });
+      persist(p).then(function () { closeEditor(); showMessage("Protocolo \"" + p.nome + "\" salvo" + (memoryFallback ? " (temporário)." : "."), "success"); });
     });
     if (btnNew) btnNew.addEventListener("click", function () {
       if (!currentRegion) { showMessage("Selecione uma região no modelo primeiro.", "warning"); return; }
@@ -1953,7 +1973,7 @@
       if (nome === null) return; nome = nome.trim(); if (!nome) return;
       var novo = blank("p_" + Date.now(), nome, currentRegion);
       protocols.push(novo);
-      persist(novo).then(function () { selectProtocol(novo.id); setMode("edit"); });
+      persist(novo).then(function () { selectProtocol(novo.id); openEditor(); });
     });
 
     for (var z = 0; z < zones.length; z++) {

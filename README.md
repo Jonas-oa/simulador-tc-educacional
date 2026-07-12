@@ -100,6 +100,26 @@ etapa futura)
 - Tema claro/escuro. Layout mobile (vertical) otimizado; barra de
   status com indicadores dinâmicos; painel de mensagens.
 
+**Layout PC (revisão 2026-07)**
+- Seletor rápido de telas (Sala/Paciente/Protocolo/Exame) é exclusivo
+  do modo celular — oculto no desktop.
+- Quadrante 3D do PC usa o mesmo conceito da tela "Sala" do celular:
+  viewport em tela cheia e painel de comandos flutuante semitransparente
+  sobre o 3D, com alça de arraste e canto de escala (posição/escala
+  persistidas em localStorage; display compacto oculto — o HUD já mostra
+  os dados).
+- Quadrante Aquisição: a imagem ocupa todo o quadrante (fundo preto de
+  workstation); nome do paciente sobreposto no topo com fundo
+  transparente; Iniciar/Stop (+ slider e readout do topograma, quando
+  existem) sobrepostos na base. Antes do topograma (idle) aparecem só o
+  nome do paciente e os comandos.
+- Quadrante Protocolos sem barra de rolagem: visão padrão = mapa do
+  corpo + lista + botões "Editar" e "+ Novo protocolo" abaixo; Editar
+  (ou novo protocolo) abre o editor ocupando o quadrante inteiro, já em
+  modo de edição, com Salvar/Cancelar voltando à visão padrão.
+- Correção: guarda CSS para `[hidden]` (classes com `display` definido
+  faziam o topograma/editor "vazarem" antes da hora).
+
 ## Próximas etapas (pendentes)
 
 - **Aquisição do exame** (usa o marco zero do laser transversal) — a

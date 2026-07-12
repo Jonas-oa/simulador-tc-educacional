@@ -958,3 +958,98 @@ body.is-mobile.mob-aq .dash-pane__body { overflow: visible; }
   color: var(--text-secondary, #9aa6b2);
 }
 .ws-topo-readout .is-bad { color: var(--accent-red); }
+
+/* =====================================================================
+   LAYOUT PC — 4 ajustes (aditivos):
+   1) seletor rápido de telas exclusivo do modo celular;
+   2) quadrante 3D do PC com painel de comandos flutuante (mesmo conceito
+      da tela "Sala" do celular, com alça de arraste e canto de escala);
+   3) quadrante Aquisição em tela cheia com paciente e comandos sobrepostos;
+   4) quadrante Protocolos sem rolagem — editor abre no quadrante inteiro.
+   ===================================================================== */
+
+/* --- 1) Seletor Sala/Paciente/Protocolo/Exame só aparece no celular --- */
+body:not(.is-mobile) .mobile-switch { display: none !important; }
+
+/* --- 2) 3D do PC: viewport ocupa o quadrante; console vira camada flutuante --- */
+body:not(.is-mobile) #pane-sim .app-main { display: block; position: relative; height: 100%; }
+body:not(.is-mobile) #pane-sim .viewport { position: absolute; inset: 0; height: 100%; width: 100%; }
+/* HUD do viewport já mostra os dados; display do console fica oculto (paridade com o celular) */
+body:not(.is-mobile) #pane-sim .console .display--compact { display: none; }
+body:not(.is-mobile) #pane-sim .console {
+  position: absolute; inset: 0; z-index: 20; pointer-events: none;
+  display: block; background: transparent; padding: 0; overflow: visible;
+}
+body:not(.is-mobile) #pane-sim .console .panel {
+  position: absolute; width: auto; margin: 0; pointer-events: auto;
+  left: var(--panel-left, auto); top: var(--panel-top, auto);
+  right: var(--panel-right, 12px); bottom: var(--panel-bottom, 12px);
+  transform: scale(var(--panel-scale, 1)); transform-origin: top left;
+  touch-action: none;
+  background: rgba(6, 12, 20, 0.42); backdrop-filter: blur(7px);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+  padding: 10px; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+}
+body:not(.is-mobile) #pane-sim .console .panel .panel__grip {
+  display: flex; align-items: center; justify-content: center;
+  height: 20px; margin: -4px -4px 4px; cursor: grab; touch-action: none;
+}
+body:not(.is-mobile) #pane-sim .console .panel .panel__grip span {
+  display: block; width: 34px; height: 4px; border-radius: 2px;
+  background: rgba(255, 255, 255, 0.42);
+}
+body:not(.is-mobile) #pane-sim .console .panel .panel__grip:active { cursor: grabbing; }
+body:not(.is-mobile) #pane-sim .console .panel .panel__resize {
+  display: block; position: absolute; right: 3px; bottom: 3px;
+  width: 18px; height: 18px; cursor: nwse-resize; touch-action: none;
+  opacity: 0.55;
+  background:
+    linear-gradient(135deg,
+      transparent 0 46%, rgba(255,255,255,0.7) 46% 56%,
+      transparent 56% 68%, rgba(255,255,255,0.7) 68% 78%,
+      transparent 78%);
+}
+
+/* --- 3) Aquisição: imagem em tela cheia + sobreposições --- */
+.dash-pane__body--acq { padding: 0; gap: 0; }
+.ws-viewer--full {
+  flex: 1 1 auto; width: 100%; min-height: 320px;
+  aspect-ratio: auto; border: 0; border-radius: 0;
+  background: #000; /* fundo de workstation em ambos os temas */
+}
+.ws-overlay {
+  position: absolute; left: 0; right: 0; z-index: 5;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 14px; pointer-events: none;
+}
+.ws-overlay > * { pointer-events: auto; }
+.ws-overlay--top { top: 0; }
+.ws-overlay--bottom { bottom: 0; background: linear-gradient(transparent, rgba(0, 0, 0, 0.45)); }
+/* Nome do paciente sobre a imagem, fundo transparente */
+.ws-list--overlay { pointer-events: none; }
+.ws-list--overlay .ws-list__item,
+.ws-list--overlay .ws-list__item--active {
+  background: transparent; border: 0; padding: 0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+.ws-list--overlay .ws-list__name { font-size: 0.92rem; font-weight: 600; color: #fff; }
+.ws-list--overlay .ws-list__meta { color: rgba(255, 255, 255, 0.78); }
+.ws-actions--center { justify-content: center; margin-top: 0; }
+.ws-note--overlay { color: rgba(255, 255, 255, 0.55); text-align: center; margin: 0; }
+.ws-viewer--full .ws-topo-readout { margin: 0; color: rgba(255, 255, 255, 0.82); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85); }
+.ws-viewer--full .ws-viewer__placeholder { color: rgba(255, 255, 255, 0.4); }
+
+/* --- 4) Protocolos: editor ocupa o quadrante inteiro --- */
+#pane-proto.is-editing .proto2 { display: none; }
+.proto-editor--full { border-top: 0; padding-top: 0; margin-top: 0; flex: 1 1 auto; min-height: 0; overflow: auto; }
+.proto-editor__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* Correção: classes com display definido venciam o atributo [hidden]
+   (ex.: o topograma "vazava" no quadrante antes do exame começar).
+   Esta guarda garante que [hidden] sempre oculte esses elementos. */
+.ws-viewer__img[hidden],
+.ws-topo[hidden],
+.ws-viewer-ctrl[hidden],
+.ws-topo-readout[hidden],
+.ws-actions[hidden],
+.proto2__editor[hidden] { display: none !important; }
