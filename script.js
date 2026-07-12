@@ -2274,32 +2274,62 @@
   }
 
   // =================================================================
-  // PAINEL DE 4 QUADRANTES — DIVISÓRIAS ARRASTÁVEIS ("margens editáveis")
-  // Arrasta a divisória vertical/horizontal (mouse ou toque) e redimensiona
-  // os quadrantes. A cada ajuste redispara "resize" para o canvas 3D se
-  // reajustar. Em telas estreitas o layout empilha (CSS) e as divisórias
-  // ficam ocultas — aqui limpamos os estilos inline para o CSS assumir.
+  // PAINEL DE 4 QUADRANTES — DIVISÓRIAS ARRASTÁVEIS (Opção B: colunas
+  // independentes). 3 divisórias: vertical (largura das colunas) e uma
+  // horizontal POR COLUNA — mexer na altura da direita não altera a
+  // esquerda (e vice-versa). Tudo em FRAÇÕES (%): ao mover uma divisória
+  // ou redimensionar a janela, os vizinhos preenchem o espaço em suas
+  // proporções. Frações persistidas em localStorage; duplo clique na
+  // divisória volta ao 50/50. A cada ajuste redispara "resize" para o
+  // canvas 3D. Em telas estreitas/celular o layout empilha (CSS) e os
+  // estilos inline são limpos para o CSS assumir.
   // =================================================================
   function initDashboardSplit() {
     var dash = document.getElementById("dashboard");
+    var colLeft = document.getElementById("dash-col-left");
     var gv = document.getElementById("dash-gutter-v");
-    var gh = document.getElementById("dash-gutter-h");
-    if (!dash || !gv || !gh) return;
+    var ghL = document.getElementById("dash-gutter-h-left");
+    var ghR = document.getElementById("dash-gutter-h-right");
+    var paneSim = document.getElementById("pane-sim");
+    var paneAcq = document.getElementById("pane-acq");
+    if (!dash || !colLeft || !gv || !ghL || !ghR || !paneSim || !paneAcq) return;
 
     var MIN = 120, GUT = 6, MOBILE = 900;
-    var colPx = null, rowPx = null; // largura/altura do painel esq/sup; null = 50%
+    var KEY = "simuladorTC.dashSplit";
+    // Frações 0–1: col = largura da coluna esquerda; left/right = altura do
+    // quadrante SUPERIOR de cada coluna. Os vizinhos (flex:1) ocupam o resto.
+    var frac = { col: 0.5, left: 0.5, right: 0.5 };
+
+    try {
+      var saved = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (saved) {
+        ["col", "left", "right"].forEach(function (k) {
+          var v = parseFloat(saved[k]);
+          if (!isNaN(v)) frac[k] = Math.min(0.95, Math.max(0.05, v));
+        });
+      }
+    } catch (e) { /* sem persistência */ }
+
+    function persistFrac() {
+      try { localStorage.setItem(KEY, JSON.stringify(frac)); } catch (e) { /* sem persistência */ }
+    }
+
+    function clampPx(want, span) {
+      return Math.max(MIN, Math.min(Math.max(MIN, span - MIN), want));
+    }
 
     function apply() {
       if (document.body.classList.contains("is-mobile") || window.innerWidth < MOBILE) {
-        dash.style.gridTemplateColumns = "";
-        dash.style.gridTemplateRows = "";
+        colLeft.style.flex = "";
+        paneSim.style.flex = "";
+        paneAcq.style.flex = "";
         return;
       }
-      var w = dash.clientWidth, h = dash.clientHeight;
-      var left = (colPx == null) ? (w - GUT) / 2 : Math.max(MIN, Math.min(w - GUT - MIN, colPx));
-      var top = (rowPx == null) ? (h - GUT) / 2 : Math.max(MIN, Math.min(h - GUT - MIN, rowPx));
-      dash.style.gridTemplateColumns = left + "px " + GUT + "px 1fr";
-      dash.style.gridTemplateRows = top + "px " + GUT + "px 1fr";
+      var w = dash.clientWidth - GUT;       // largura útil (menos a divisória vertical)
+      var h = dash.clientHeight - GUT;      // altura útil de cada coluna (menos a divisória)
+      colLeft.style.flex = "0 0 " + clampPx(frac.col * w, w) + "px";
+      paneSim.style.flex = "0 0 " + clampPx(frac.left * h, h) + "px";
+      paneAcq.style.flex = "0 0 " + clampPx(frac.right * h, h) + "px";
     }
 
     var raf = null;
@@ -2308,16 +2338,18 @@
       raf = requestAnimationFrame(function () { raf = null; window.dispatchEvent(new Event("resize")); });
     }
 
-    function makeDraggable(gutter, axis) {
+    function makeDraggable(gutter, key, axis) {
       gutter.addEventListener("pointerdown", function (e) {
-        if (window.innerWidth < MOBILE) return;
+        if (document.body.classList.contains("is-mobile") || window.innerWidth < MOBILE) return;
         e.preventDefault();
         try { gutter.setPointerCapture(e.pointerId); } catch (err) {}
         dash.classList.add("dashboard--dragging");
         function move(ev) {
           var r = dash.getBoundingClientRect();
-          if (axis === "x") colPx = ev.clientX - r.left - GUT / 2;
-          else rowPx = ev.clientY - r.top - GUT / 2;
+          var f = (axis === "x")
+            ? (ev.clientX - r.left - GUT / 2) / Math.max(1, r.width - GUT)
+            : (ev.clientY - r.top - GUT / 2) / Math.max(1, r.height - GUT);
+          frac[key] = Math.min(0.95, Math.max(0.05, f));
           apply();
           scheduleResize();
         }
@@ -2327,15 +2359,24 @@
           gutter.removeEventListener("pointerup", up);
           gutter.removeEventListener("pointercancel", up);
           dash.classList.remove("dashboard--dragging");
+          persistFrac();
           window.dispatchEvent(new Event("resize"));
         }
         gutter.addEventListener("pointermove", move);
         gutter.addEventListener("pointerup", up);
         gutter.addEventListener("pointercancel", up);
       });
+      // Duplo clique: volta esta divisória ao 50/50.
+      gutter.addEventListener("dblclick", function () {
+        frac[key] = 0.5;
+        apply();
+        persistFrac();
+        window.dispatchEvent(new Event("resize"));
+      });
     }
-    makeDraggable(gv, "x");
-    makeDraggable(gh, "y");
+    makeDraggable(gv, "col", "x");
+    makeDraggable(ghL, "left", "y");
+    makeDraggable(ghR, "right", "y");
 
     window.addEventListener("resize", apply);
     apply();

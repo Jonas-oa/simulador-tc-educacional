@@ -101,6 +101,12 @@ etapa futura)
   status com indicadores dinâmicos; painel de mensagens.
 
 **Layout PC (revisão 2026-07)**
+- Quadrantes com divisórias independentes (Opção B — colunas): a divisória
+  vertical ajusta a largura das colunas; cada coluna tem a própria divisória
+  horizontal (mexer na altura da direita não altera a esquerda). Tudo em
+  frações (%): os vizinhos preenchem o espaço liberado em suas proporções,
+  inclusive ao redimensionar a janela. Frações persistidas em localStorage;
+  duplo clique na divisória volta ao 50/50.
 - Seletor rápido de telas (Sala/Paciente/Protocolo/Exame) é exclusivo
   do modo celular — oculto no desktop.
 - Quadrante 3D do PC usa o mesmo conceito da tela "Sala" do celular:

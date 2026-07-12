@@ -756,14 +756,25 @@ body {
    ===================================================================== */
 .dashboard {
   grid-row: 2;
-  display: grid;
-  grid-template-columns: 1fr 6px 1fr;
-  grid-template-rows: 1fr 6px 1fr;
+  display: flex;
+  align-items: stretch;
   min-height: 0;
   background: var(--bg-void);
 }
+/* Colunas independentes (Opção B): cada coluna tem a própria divisória
+   horizontal; a vertical separa as colunas. As frações são aplicadas pelo
+   JS via flex-basis nos itens "superiores" (coluna esquerda / quadrante de
+   cima); os vizinhos têm flex:1 e preenchem o restante proporcionalmente. */
+.dash-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0;
+}
 .dash-pane {
   position: relative;
+  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -772,10 +783,7 @@ body {
   border: 1px solid var(--border-subtle);
   background: var(--bg-panel);
 }
-.dash-pane--sim   { grid-column: 1; grid-row: 1; background: var(--bg-void); }
-.dash-pane--acq   { grid-column: 3; grid-row: 1; }
-.dash-pane--proto { grid-column: 3; grid-row: 3; }
-.dash-pane--pac   { grid-column: 1; grid-row: 3; }
+.dash-pane--sim   { background: var(--bg-void); }
 
 .dash-pane__head {
   flex: 0 0 auto;
@@ -805,17 +813,19 @@ body {
 #pane-sim .app-main { flex: 1 1 auto; min-height: 0; height: auto; }
 
 /* Divisórias (gutters) */
-.dash-gutter { z-index: 5; background: var(--border-strong); transition: background var(--transition-fast); }
+.dash-gutter { z-index: 5; flex: 0 0 6px; background: var(--border-strong); transition: background var(--transition-fast); }
 .dash-gutter:hover { background: var(--accent-cyan); }
-.dash-gutter--v { grid-column: 2; grid-row: 1 / -1; cursor: col-resize; }
-.dash-gutter--h { grid-row: 2; grid-column: 1 / -1; cursor: row-resize; z-index: 6; }
+.dash-gutter--v { cursor: col-resize; }
+.dash-gutter--h { cursor: row-resize; }
 .dashboard--dragging { user-select: none; -webkit-user-select: none; }
 
-/* Empilha em telas estreitas; divisórias somem */
+/* Empilha em telas estreitas; divisórias somem; colunas viram transparentes
+   ao layout (display:contents) para os quadrantes empilharem direto. */
 @media (max-width: 900px) {
-  .dashboard { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: minmax(62vh, auto); }
+  .dashboard { flex-direction: column; overflow-y: auto; }
+  .dash-col { display: contents; }
   .dash-gutter { display: none; }
-  .dash-pane--sim, .dash-pane--acq, .dash-pane--proto, .dash-pane--pac { grid-column: 1; grid-row: auto; }
+  .dash-pane { flex: 0 0 auto; min-height: 62vh; }
 }
 
 /* Cadastro de pacientes (quadrante inferior esquerdo) */
@@ -885,6 +895,7 @@ body {
 body.is-mobile .status-bar,
 body.is-mobile .message-panel { display: none; }
 body.is-mobile .dash-gutter { display: none !important; }
+body.is-mobile .dash-col { display: contents; }
 body.is-mobile .dashboard {
   display: flex !important; flex-direction: column; height: 100%;
   grid-template-columns: none !important; grid-template-rows: none !important;

@@ -65,9 +65,7 @@
   <div class="mobile-rotate" id="mobile-rotate" aria-hidden="true">↺ Use a horizontal na Sala 3D</div>
 
   <main class="dashboard" id="dashboard">
-    <div class="dash-gutter dash-gutter--v" id="dash-gutter-v" role="separator" aria-orientation="vertical" aria-label="Redimensionar largura das colunas"></div>
-    <div class="dash-gutter dash-gutter--h" id="dash-gutter-h" role="separator" aria-orientation="horizontal" aria-label="Redimensionar altura das linhas"></div>
-
+    <div class="dash-col dash-col--left" id="dash-col-left">
     <section class="dash-pane dash-pane--sim" id="pane-sim" aria-label="Simulador 3D">
       <div class="app-main" id="sala-view">
         <section class="viewport" aria-label="Visualização 3D do equipamento">
@@ -124,6 +122,31 @@
       </div>
     </section>
 
+    <div class="dash-gutter dash-gutter--h" id="dash-gutter-h-left" role="separator" aria-orientation="horizontal" aria-label="Redimensionar altura da coluna esquerda"></div>
+
+    <section class="dash-pane dash-pane--pac" id="pane-pac" aria-label="Cadastro de pacientes">
+      <header class="dash-pane__head"><h2 class="dash-pane__title">Cadastro de pacientes</h2></header>
+      <div class="dash-pane__body">
+        <div class="pac-form" id="pac-form">
+          <label class="ws-field ws-field--full"><span class="ws-field__label">Prontuário</span><input class="ws-input" id="pac-prontuario" type="text" placeholder="nº do prontuário"></label>
+          <label class="ws-field ws-field--full"><span class="ws-field__label">Nome</span><input class="ws-input" id="pac-nome" type="text" placeholder="nome do paciente"></label>
+          <div class="pac-form__row">
+            <label class="ws-field"><span class="ws-field__label">Sexo</span>
+              <select class="ws-input" id="pac-sexo"><option value="Feminino">Feminino</option><option value="Masculino">Masculino</option><option value="Outro">Outro</option></select>
+            </label>
+            <label class="ws-field"><span class="ws-field__label">Idade</span><input class="ws-input" id="pac-idade" type="number" min="0" max="130" placeholder="anos"></label>
+          </div>
+          <label class="ws-field ws-field--full"><span class="ws-field__label">Região a examinar</span><select class="ws-input" id="pac-regiao"></select></label>
+          <div class="ws-actions"><button class="ws-btn ws-btn--primary" id="pac-add" type="button">Cadastrar paciente</button></div>
+        </div>
+        <ul class="pac-list" id="pac-list"></ul>
+      </div>
+    </section>
+    </div>
+
+    <div class="dash-gutter dash-gutter--v" id="dash-gutter-v" role="separator" aria-orientation="vertical" aria-label="Redimensionar largura das colunas"></div>
+
+    <div class="dash-col dash-col--right" id="dash-col-right">
     <section class="dash-pane dash-pane--acq" id="pane-acq" aria-label="Aquisição de exames">
       <header class="dash-pane__head"><h2 class="dash-pane__title">Aquisição de exames</h2></header>
       <div class="dash-pane__body dash-pane__body--acq">
@@ -160,6 +183,8 @@
         </div>
       </div>
     </section>
+
+    <div class="dash-gutter dash-gutter--h" id="dash-gutter-h-right" role="separator" aria-orientation="horizontal" aria-label="Redimensionar altura da coluna direita"></div>
 
     <section class="dash-pane dash-pane--proto" id="pane-proto" aria-label="Cadastro e seleção de protocolos">
       <header class="dash-pane__head"><h2 class="dash-pane__title">Protocolos</h2></header>
@@ -213,25 +238,7 @@
         </div>
       </div>
     </section>
-
-    <section class="dash-pane dash-pane--pac" id="pane-pac" aria-label="Cadastro de pacientes">
-      <header class="dash-pane__head"><h2 class="dash-pane__title">Cadastro de pacientes</h2></header>
-      <div class="dash-pane__body">
-        <div class="pac-form" id="pac-form">
-          <label class="ws-field ws-field--full"><span class="ws-field__label">Prontuário</span><input class="ws-input" id="pac-prontuario" type="text" placeholder="nº do prontuário"></label>
-          <label class="ws-field ws-field--full"><span class="ws-field__label">Nome</span><input class="ws-input" id="pac-nome" type="text" placeholder="nome do paciente"></label>
-          <div class="pac-form__row">
-            <label class="ws-field"><span class="ws-field__label">Sexo</span>
-              <select class="ws-input" id="pac-sexo"><option value="Feminino">Feminino</option><option value="Masculino">Masculino</option><option value="Outro">Outro</option></select>
-            </label>
-            <label class="ws-field"><span class="ws-field__label">Idade</span><input class="ws-input" id="pac-idade" type="number" min="0" max="130" placeholder="anos"></label>
-          </div>
-          <label class="ws-field ws-field--full"><span class="ws-field__label">Região a examinar</span><select class="ws-input" id="pac-regiao"></select></label>
-          <div class="ws-actions"><button class="ws-btn ws-btn--primary" id="pac-add" type="button">Cadastrar paciente</button></div>
-        </div>
-        <ul class="pac-list" id="pac-list"></ul>
-      </div>
-    </section>
+    </div>
   </main>
 
   <footer class="message-panel" aria-label="Painel de mensagens" role="status" aria-live="polite">
