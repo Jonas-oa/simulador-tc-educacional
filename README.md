@@ -100,6 +100,14 @@ etapa futura)
 - Tema claro/escuro. Layout mobile (vertical) otimizado; barra de
   status com indicadores dinâmicos; painel de mensagens.
 
+**Correções mobile + sala sempre visível (revisão 2026-07d)**
+- Cache-busting versionado (REV) em manifest e assets — corrige o
+  topograma aparecendo na vertical por cache antigo do GitHub Pages.
+  Bump do REV a cada troca de asset.
+- Sala 3D sempre visível na etapa Exame (antes só durante a aquisição):
+  no desktop-console e também no celular (aba Exame), o viewport 3D é
+  reparentado para o PiP e acompanha a mesa antes/durante/depois do scan.
+
 **Console guiado + avaliação (revisão 2026-07c)**
 - Console guiado no desktop (padrão): etapas 1 Sala → 2 Paciente →
   3 Protocolo → 4 Exame em tela cheia, como nos consoles reais

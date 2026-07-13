@@ -2150,6 +2150,8 @@
     if (!box || !img || !slider || !startBtn) return;
 
     var BASE = "assets/volumes/cranio/";
+    var REV = "20260712b"; // bump ao trocar assets — quebra cache do GitHub Pages
+    function bust(path) { return BASE + path + (path.indexOf("?") < 0 ? "?v=" + REV : "&v=" + REV); }
     var manifest = null;
     var loaded = false;
     // idle → topoAcq (varredura) → plan (linhas) → volAcq (mesa+cortes) → review
@@ -2297,7 +2299,7 @@
     }
 
     function pad3(n) { n = String(n); while (n.length < 3) n = "0" + n; return n; }
-    function srcFor(i) { return BASE + "axial_" + pad3(i) + ".png"; }
+    function srcFor(i) { return bust("axial_" + pad3(i) + ".png"); }
     function show(i) {
       if (!manifest) return;
       i = i | 0;
@@ -2699,13 +2701,13 @@
         return;
       }
       if (manifest) {
-        topoImg.src = BASE + (manifest.topograma_h || manifest.topograma || "topograma.png");
+        topoImg.src = bust(manifest.topograma_h || manifest.topograma || "topograma.png");
         toTopoAcq();
         return;
       }
       startBtn.disabled = true;
       startBtn.textContent = "Preparando…";
-      fetch(BASE + "manifest.json").then(function (r) {
+      fetch(bust("manifest.json"), { cache: "no-cache" }).then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
       }).then(function (m) {
@@ -2716,7 +2718,7 @@
           caption.textContent = "Topograma ilustrativo (paciente distinto do volume) para planejar a faixa. Volume axial real de TC de crânio (" +
             m.fonte.nome + "). " + m.fonte.licenca + " Apenas visualização — sem interpretação diagnóstica.";
         }
-        topoImg.src = BASE + (m.topograma_h || m.topograma || "topograma.png");
+        topoImg.src = bust(m.topograma_h || m.topograma || "topograma.png");
         toTopoAcq();
       }).catch(function (err) {
         startBtn.disabled = false;
@@ -3207,9 +3209,14 @@
     var userHidden = false;
 
     function update() {
-      var acquiring = (curPhase === "topoAcq" || curPhase === "moving" || curPhase === "volAcq");
-      var want = !!(consoleUiApi && consoleUiApi.isConsole() &&
-        consoleUiApi.getStep() === "acq" && acquiring && !userHidden);
+      // Onde estamos na etapa "Exame"?
+      var b = document.body;
+      var onExamDesktop = !!(consoleUiApi && consoleUiApi.isConsole() && consoleUiApi.getStep() === "acq");
+      var onExamMobile = b.classList.contains("is-mobile") && b.classList.contains("mob-aq");
+      var onExam = onExamDesktop || onExamMobile;
+      // Sala 3D fica SEMPRE visível na etapa Exame (não só durante a
+      // aquisição), para o aluno acompanhar a mesa antes/depois do scan.
+      var want = onExam && !userHidden;
       var inPip = (vp.parentNode === pipBody);
       if (want && !inPip) {
         pipBody.appendChild(vp);
@@ -3230,6 +3237,9 @@
       curPhase = p;
       update();
     });
+    // Troca de aba no modo celular (mob-*) também reavalia o PiP.
+    var mo = new MutationObserver(update);
+    mo.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     // Troca de etapa/modo dispara resize (pokeResize) — reavaliamos aqui.
     window.addEventListener("resize", update);
     if (pipHide) pipHide.addEventListener("click", function () { userHidden = true; update(); });
