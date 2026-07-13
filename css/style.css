@@ -1185,7 +1185,13 @@ body.console-mode:not(.is-mobile) #pane-proto .dash-pane__body {
    do viewer de aquisição. Fixa uma altura confortável e garante que as
    regras de mob-aq (que ocultam #pane-sim) não escondam o viewport
    reparentado para dentro do PiP. */
-body.is-mobile.mob-aq #ws-slice-viewer { flex-direction: column; align-items: stretch; justify-content: flex-start; aspect-ratio: auto; min-height: 46vh; }
+body.is-mobile.mob-aq #ws-slice-viewer { flex-direction: column; align-items: stretch; justify-content: flex-start; aspect-ratio: auto; min-height: 0; overflow: visible; }
+/* Topograma limitado em altura para sobrar espaço aos controles; largura
+   ajustada ao conteúdo para as linhas (box) permanecerem alinhadas. */
+body.is-mobile.mob-aq .ws-topo { align-self: center; width: fit-content; max-width: 100%; max-height: 42vh; }
+body.is-mobile.mob-aq .ws-topo__img { width: auto; height: auto; max-width: 100%; max-height: 42vh; }
+/* Controles em fluxo normal, sempre acessíveis abaixo do topograma. */
+body.is-mobile.mob-aq .ws-overlay--bottom { position: static; margin-top: 8px; pointer-events: auto; }
 body.is-mobile.mob-aq .pip { position: relative; right: auto; top: auto; left: auto; width: 100%; height: 240px; margin: 0 0 10px; flex: 0 0 auto; }
 body.is-mobile.mob-aq .pip__body .viewport { display: block !important; }
 body.is-mobile.mob-aq .ws-overlay { position: static; }
@@ -1199,7 +1205,7 @@ body.is-mobile.mob-aq .ws-overlay--bottom { background: none; margin-top: auto; 
       topo do quadrante de exame (o PiP desktop não vale no celular).
    ===================================================================== */
 body.is-mobile.mob-aq #pane-acq { min-height: auto; }
-body.is-mobile.mob-aq #pane-acq .ws-viewer--full { min-height: 44vh; }
+body.is-mobile.mob-aq #pane-acq .ws-viewer--full { min-height: 0; }
 
 /* Faixa 3D fixa no topo da aquisição (mobile): o .viewport REAL é
    reparentado para cá durante topograma/posicionamento/volume. */
