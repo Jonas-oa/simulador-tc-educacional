@@ -1144,3 +1144,27 @@ body.console-mode:not(.is-mobile) #pane-proto .dash-pane__body {
 .pip__hide { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 0 5px; line-height: 1; }
 .pip__body { position: relative; flex: 1 1 auto; min-height: 0; }
 .pip__body .viewport { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* Relatório didático do exame + fixação rápida (fase de revisão) */
+.ws-report {
+  position: absolute; z-index: 9; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, 92%); max-height: 88%; overflow: auto;
+  background: rgba(10, 16, 24, 0.96);
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  padding: 16px 18px; color: var(--text-primary);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+}
+.ws-report__title { margin: 0 0 10px; font-size: 0.95rem; }
+.ws-report__body { font-size: 0.82rem; line-height: 1.6; color: var(--text-secondary); }
+.ws-report__body strong { color: var(--text-primary); }
+.ws-report__body .is-bad { color: var(--accent-red); }
+.ws-report__body .is-good { color: #37d67a; }
+.ws-quiz { margin-top: 12px; border-top: 1px solid var(--border-subtle); padding-top: 10px; }
+.ws-quiz__title { margin: 0 0 8px; font-size: 0.8rem; color: var(--text-secondary); }
+.ws-quiz__list { margin: 0; padding-left: 18px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 10px; color: var(--text-primary); }
+.ws-quiz__list label { display: block; margin-top: 4px; cursor: pointer; color: var(--text-secondary); }
+.ws-quiz__list label.q-ok { color: #37d67a; }
+.ws-quiz__list label.q-bad { color: var(--accent-red); }
+.ws-quiz__result { font-size: 0.8rem; align-self: center; color: var(--text-secondary); }
+.ws-report[hidden] { display: none !important; }

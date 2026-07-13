@@ -1574,6 +1574,15 @@
           return { ok: true, startZ: startZ0, targetZ: target };
         },
         getPos: function () { return tableZ; },
+        // Deslocamento vertical (cm) do eixo do paciente em relação ao
+        // isocentro. Física (AAPM): no topograma LATERAL, fora do
+        // isocentro = magnificação e erro no cálculo automático de dose.
+        getIsoOffsetCm: function () {
+          if (!patientPlaced) return null;
+          var v = new THREE.Vector3();
+          patientPose.getWorldPosition(v);
+          return (v.y - ISO_Y) * 100;
+        },
         stop: function () { abortAutoDrive("Aquisição interrompida pela workstation."); }
       };
 
@@ -2130,6 +2139,8 @@
     var startBtn = document.getElementById("ws-exam-start");
     var stopBtn = document.getElementById("ws-exam-stop");
     var moveBtn = document.getElementById("ws-exam-move");
+    var reportBtn = document.getElementById("ws-exam-report");
+    var reportEl = document.getElementById("ws-report");
     var caption = document.getElementById("ws-viewer-caption");
     var topo = document.getElementById("ws-topo");
     var topoImg = document.getElementById("ws-topo-img");
@@ -2161,6 +2172,7 @@
     var TARGET = { top: [0, 16], bottom: [46, 70], left: [24, 44], right: [82, 98] };
     var MIN_GAP = 6; // % mínimo entre linhas opostas
     var lastSlice = 0; // último corte pintado na aquisição (p/ review)
+    var lastAcq = null; // parâmetros da última aquisição (p/ relatório)
 
     // Anuncia a fase do exame (idle/topoAcq/plan/moving/volAcq/review)
     // para módulos desacoplados — ex.: o PiP da sala 3D no modo console.
@@ -2384,7 +2396,7 @@
       if (tableDriveApi && tableDriveApi.isBusy && tableDriveApi.isBusy()) tableDriveApi.stop();
     }
     function toIdle() {
-      phase = "idle"; loaded = false; lastSlice = 0;
+      phase = "idle"; loaded = false; lastSlice = 0; lastAcq = null;
       announcePhase("idle");
       topoRef = null; atStart = false; isMoving = false;
       stopAnimations();
@@ -2395,6 +2407,8 @@
       placeholder.hidden = false;
       startBtn.disabled = false; startBtn.textContent = "Iniciar";
       if (moveBtn) moveBtn.hidden = true;
+      if (reportBtn) reportBtn.hidden = true;
+      if (reportEl) reportEl.hidden = true;
       if (stopBtn) stopBtn.disabled = true;
       counter.textContent = "—";
       topoImg.style.clipPath = "";
@@ -2445,7 +2459,15 @@
           showMessage(res.motivo, "warning");
           return;
         }
-        topoRef = { startZ: res.startZ, dir: pp.direcao };
+        topoRef = { startZ: res.startZ, dir: pp.direcao, isoOff: null };
+        if (tableDriveApi.getIsoOffsetCm) {
+          var off = tableDriveApi.getIsoOffsetCm();
+          topoRef.isoOff = off;
+          if (off != null && Math.abs(off) > 4) {
+            showMessage("Atenção: eixo do paciente ~" + Math.abs(off).toFixed(0) + " cm " +
+              (off > 0 ? "acima" : "abaixo") + " do isocentro — no equipamento real o topograma LATERAL sai magnificado e o cálculo automático de dose é afetado. Ajuste a ALTURA da mesa.", "warning");
+          }
+        }
         return;
       }
       topoRef = null; // fallback: sem sincronia com a mesa
@@ -2475,6 +2497,42 @@
       applyBox(); renderReadout(); // renderReadout pode voltar a travar o Iniciar
       if (stopBtn) stopBtn.disabled = false;
       if (!keepBox) showMessage("Topograma adquirido — ajuste a faixa (base↔vértice) e o FOV, depois Iniciar.", "success");
+    }
+
+    // RELATÓRIO didático (fase de revisão): resume paciente, protocolo,
+    // faixa/FOV, velocidade da mesa, isocentro e dose didática
+    // (DLP = CTDIvol × comprimento). Sem validade clínica/dosimétrica.
+    function buildReport() {
+      var bodyEl = document.getElementById("ws-report-body");
+      if (!bodyEl) return;
+      var pac = (examSessionApi && examSessionApi.get) ? examSessionApi.get() : null;
+      var prot = examProtocol ? examProtocol.data : null;
+      var pp = (lastAcq && lastAcq.pp) || protocolParams();
+      var scanLen = lastAcq ? lastAcq.scanLen : 0;
+      var speed = lastAcq ? lastAcq.speed : 0;
+      var dose = NaN;
+      if (prot && prot.dose) {
+        var m = String(prot.dose).replace(/,/g, ".").match(/\d+(\.\d+)?/);
+        if (m) dose = parseFloat(m[0]);
+      }
+      var dlp = (dose > 0 && scanLen > 0) ? dose * (scanLen / 10) : NaN;
+      var iso = topoRef ? topoRef.isoOff : null;
+      var isoTxt = (iso == null)
+        ? "não avaliado"
+        : (Math.abs(iso) <= 4
+          ? '<span class="is-good">no isocentro (' + iso.toFixed(1) + ' cm)</span>'
+          : '<span class="is-bad">fora do isocentro (' + iso.toFixed(1) + ' cm) — magnificação no topograma lateral</span>');
+      var rows = [];
+      if (pac) rows.push("<strong>Paciente:</strong> " + pac.nome + " · " + (pac.prontuario ? "Pront. " + pac.prontuario : "s/ prontuário") + (pac.regiao ? " · " + pac.regiao : ""));
+      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · direção " + (pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)"));
+      rows.push("<strong>Faixa varrida:</strong> " + Math.round(scanLen) + " mm · <strong>FOV A-P:</strong> " + Math.max(0, boxState.bottom - boxState.top).toFixed(0) + "% da imagem");
+      rows.push("<strong>Mesa:</strong> " + Math.round(speed) + " mm/s (pitch " + pp.pitch + " × colimação " + pp.colim.toFixed(1) + " mm ÷ rotação " + ROT_S.toFixed(1) + " s)");
+      rows.push("<strong>Posicionamento no isocentro:</strong> " + isoTxt);
+      if (!isNaN(dlp)) {
+        rows.push("<strong>Dose (didática):</strong> DLP ≈ CTDIvol " + dose + " mGy × " + (scanLen / 10).toFixed(1) + " cm = <strong>" + dlp.toFixed(0) + " mGy·cm</strong>");
+      }
+      rows.push("<em>Valores didáticos para treinamento de operação — sem validade clínica ou dosimétrica.</em>");
+      bodyEl.innerHTML = rows.join("<br>");
     }
 
     // MOVER — leva a mesa 3D até a posição inicial da faixa planejada
@@ -2544,12 +2602,15 @@
       slider.disabled = true;
       startBtn.disabled = true; startBtn.textContent = "Adquirindo volume…";
       if (moveBtn) moveBtn.hidden = true;
+      if (reportBtn) reportBtn.hidden = true;
+      if (reportEl) reportEl.hidden = true;
       if (stopBtn) stopBtn.disabled = false;
       var total = manifest.cortes;
       var pp = protocolParams();
       // Comprimento da varredura = faixa CC planejada no topograma (mm)
       var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
       var speed = Math.max(10, Math.min(120, (pp.pitch * pp.colim) / ROT_S)); // mm/s
+      lastAcq = { scanLen: scanLen, speed: speed, pp: pp };
       function paintProg(k) {
         var idx = Math.round(k * (total - 1));
         var n = (pp.direcao === "craniocaudal") ? (total - 1 - idx) : idx;
@@ -2598,7 +2659,10 @@
 
     function toReview() {
       phase = "review";
-      announcePhase("review"); loaded = true;
+      announcePhase("review");
+      buildReport();
+      if (reportEl) reportEl.hidden = false;
+      if (reportBtn) reportBtn.hidden = false; loaded = true;
       slider.disabled = false;
       startBtn.disabled = true; startBtn.textContent = "Exame adquirido";
       if (stopBtn) stopBtn.disabled = false;
@@ -2678,6 +2742,37 @@
     startBtn.addEventListener("click", onStart);
     if (stopBtn) stopBtn.addEventListener("click", onStop);
     if (moveBtn) moveBtn.addEventListener("click", onMove);
+    var reportClose = document.getElementById("ws-report-close");
+    if (reportClose) reportClose.addEventListener("click", function () { if (reportEl) reportEl.hidden = true; });
+    if (reportBtn) reportBtn.addEventListener("click", function () {
+      if (!reportEl) return;
+      if (reportEl.hidden) buildReport();
+      reportEl.hidden = !reportEl.hidden;
+    });
+    var quizBtn = document.getElementById("ws-quiz-check");
+    var quizRes = document.getElementById("ws-quiz-result");
+    if (quizBtn) quizBtn.addEventListener("click", function () {
+      var hits = 0, answered = 0;
+      ["q1", "q2", "q3"].forEach(function (q) {
+        var inputs = document.querySelectorAll('input[name="' + q + '"]');
+        Array.prototype.forEach.call(inputs, function (inp) {
+          var lab = inp.closest ? inp.closest("label") : null;
+          if (lab) lab.classList.remove("q-ok", "q-bad");
+        });
+        Array.prototype.forEach.call(inputs, function (inp) {
+          var lab = inp.closest ? inp.closest("label") : null;
+          if (inp.checked) {
+            answered++;
+            var ok = inp.hasAttribute("data-ok");
+            if (ok) hits++;
+            if (lab) lab.classList.add(ok ? "q-ok" : "q-bad");
+          } else if (inp.hasAttribute("data-ok") && lab) {
+            lab.classList.add("q-ok"); // mostra a correta
+          }
+        });
+      });
+      if (quizRes) quizRes.textContent = answered === 0 ? "Responda antes de corrigir." : hits + " / 3 corretas";
+    });
     topoImg.addEventListener("load", fitTopo);
     window.addEventListener("resize", fitTopo);
   }

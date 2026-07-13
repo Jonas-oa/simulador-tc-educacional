@@ -180,6 +180,30 @@
             <div class="pip__body" id="pip-body"></div>
           </div>
 
+          <div class="ws-report" id="ws-report" hidden>
+            <h3 class="ws-report__title">Relatório do exame — didático</h3>
+            <div class="ws-report__body" id="ws-report-body"></div>
+            <div class="ws-quiz" id="ws-quiz">
+              <h4 class="ws-quiz__title">Fixação rápida</h4>
+              <ol class="ws-quiz__list">
+                <li>Laser posicionado no queixo para exame de crânio — qual direção programar?
+                  <label><input type="radio" name="q1" value="a"> Crânio-caudal (mesa entra)</label>
+                  <label><input type="radio" name="q1" value="b" data-ok="1"> Caudo-cranial (mesa sai)</label>
+                </li>
+                <li>Durante o topograma (scout), o que se move?
+                  <label><input type="radio" name="q2" value="a" data-ok="1"> A mesa translada o paciente; o tubo fica estacionário</label>
+                  <label><input type="radio" name="q2" value="b"> O gantry gira com a mesa parada</label>
+                </li>
+                <li>No modo helicoidal, a velocidade da mesa é:
+                  <label><input type="radio" name="q3" value="a"> kV × mAs</label>
+                  <label><input type="radio" name="q3" value="b" data-ok="1"> pitch × colimação ÷ tempo de rotação</label>
+                </li>
+              </ol>
+              <div class="ws-actions"><button class="ws-btn" id="ws-quiz-check" type="button">Corrigir</button><span class="ws-quiz__result" id="ws-quiz-result"></span></div>
+            </div>
+            <div class="ws-actions"><button class="ws-btn ws-btn--primary" id="ws-report-close" type="button">Ver cortes</button></div>
+          </div>
+
           <div class="ws-overlay ws-overlay--top" aria-label="Paciente em exame">
             <ul class="ws-list ws-list--overlay" id="ws-patient-list"></ul>
           </div>
@@ -192,6 +216,7 @@
             </div>
             <div class="ws-actions ws-actions--center">
               <button class="ws-btn" id="ws-exam-move" type="button" hidden>Mover</button>
+              <button class="ws-btn" id="ws-exam-report" type="button" hidden>Relatório</button>
               <button class="ws-btn ws-btn--primary" id="ws-exam-start" type="button">Iniciar</button>
               <button class="ws-btn ws-btn--danger" id="ws-exam-stop" type="button" disabled>Stop</button>
             </div>
