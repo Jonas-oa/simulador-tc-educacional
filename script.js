@@ -2161,6 +2161,12 @@
     var TARGET = { top: [0, 16], bottom: [46, 70], left: [24, 44], right: [82, 98] };
     var MIN_GAP = 6; // % mínimo entre linhas opostas
     var lastSlice = 0; // último corte pintado na aquisição (p/ review)
+
+    // Anuncia a fase do exame (idle/topoAcq/plan/moving/volAcq/review)
+    // para módulos desacoplados — ex.: o PiP da sala 3D no modo console.
+    function announcePhase(p) {
+      try { document.dispatchEvent(new CustomEvent("ct:phase", { detail: { phase: p } })); } catch (e) { /* sem suporte */ }
+    }
     // Referência espacial do topograma: onde a mesa ESTAVA quando cada
     // ponto da imagem foi varrido. Permite ao MOVER levar a mesa de volta
     // à posição inicial da faixa planejada (como no equipamento real).
@@ -2379,6 +2385,7 @@
     }
     function toIdle() {
       phase = "idle"; loaded = false; lastSlice = 0;
+      announcePhase("idle");
       topoRef = null; atStart = false; isMoving = false;
       stopAnimations();
       img.hidden = true; ctrl.hidden = true;
@@ -2407,6 +2414,7 @@
     }
     function toTopoAcq() {
       phase = "topoAcq";
+      announcePhase("topoAcq");
       placeholder.hidden = true;
       img.hidden = true; ctrl.hidden = true;
       if (topo) topo.hidden = false;
@@ -2454,6 +2462,7 @@
 
     function toPlan(keepBox) {
       phase = "plan";
+      announcePhase("plan");
       topoImg.style.clipPath = "";
       if (topoBox) topoBox.hidden = false;
       if (readout) readout.hidden = false;
@@ -2484,6 +2493,7 @@
         return;
       }
       isMoving = true;
+      announcePhase("moving");
       renderReadout();
       soundStart("topo", 0);
       var res = tableDriveApi.start({
@@ -2494,6 +2504,7 @@
         label: "POSICIONANDO MESA",
         onDone: function () {
           soundStop(); isMoving = false;
+          announcePhase("plan");
           // Se as linhas mudaram durante o movimento, a posição já não vale.
           var alvo = volumeStartZ();
           atStart = alvo != null && Math.abs(tableDriveApi.getPos() - alvo) * 1000 < 3;
@@ -2505,12 +2516,14 @@
         onAbort: function (motivo) {
           if (phase !== "plan") return;
           soundStop(); isMoving = false; atStart = false;
+          announcePhase("plan");
           renderReadout();
           showMessage("Movimentação interrompida: " + motivo, "warning");
         }
       });
       if (!res.ok) {
         soundStop(); isMoving = false;
+        announcePhase("plan");
         renderReadout();
         showMessage(res.motivo, "warning");
       }
@@ -2524,6 +2537,7 @@
     // inverte no crânio-caudal. Validação clínica do usuário.
     function toVolAcq() {
       phase = "volAcq"; loaded = false;
+      announcePhase("volAcq");
       if (topo) topo.hidden = true;
       if (readout) readout.hidden = true;
       img.hidden = false; ctrl.hidden = false;
@@ -2583,7 +2597,8 @@
     }
 
     function toReview() {
-      phase = "review"; loaded = true;
+      phase = "review";
+      announcePhase("review"); loaded = true;
       slider.disabled = false;
       startBtn.disabled = true; startBtn.textContent = "Exame adquirido";
       if (stopBtn) stopBtn.disabled = false;
@@ -3065,6 +3080,82 @@
   }
 
   // =================================================================
+  // PIP DA SALA 3D — no modo console, durante topograma/posicionamento/
+  // volume, o .viewport REAL é reparentado para uma janela flutuante
+  // sobre o viewer de aquisição (o aluno vê a mesa se movendo enquanto a
+  // imagem cresce). Ao terminar, o viewport volta ao quadrante da Sala.
+  // O ResizeObserver do renderer reajusta o canvas automaticamente.
+  // =================================================================
+  function initAcqPip() {
+    var pip = document.getElementById("pip-3d");
+    var pipBody = document.getElementById("pip-body");
+    var pipBar = document.getElementById("pip-bar");
+    var pipHide = document.getElementById("pip-hide");
+    var viewer = document.getElementById("ws-slice-viewer");
+    var vp = document.querySelector("#pane-sim .viewport");
+    if (!pip || !pipBody || !viewer || !vp) return;
+
+    var home = vp.parentNode;
+    var homeNext = vp.nextSibling;
+    var curPhase = "idle";
+    var userHidden = false;
+
+    function update() {
+      var acquiring = (curPhase === "topoAcq" || curPhase === "moving" || curPhase === "volAcq");
+      var want = !!(consoleUiApi && consoleUiApi.isConsole() &&
+        consoleUiApi.getStep() === "acq" && acquiring && !userHidden);
+      var inPip = (vp.parentNode === pipBody);
+      if (want && !inPip) {
+        pipBody.appendChild(vp);
+        pip.hidden = false;
+      } else if (!want && inPip) {
+        home.insertBefore(vp, homeNext);
+        pip.hidden = true;
+      } else {
+        pip.hidden = !want;
+      }
+    }
+
+    document.addEventListener("ct:phase", function (e) {
+      var p = e.detail && e.detail.phase;
+      if (!p) return;
+      // Nova aquisição reexibe o PiP mesmo se o aluno o ocultou antes.
+      if ((p === "topoAcq" || p === "volAcq" || p === "moving") && curPhase !== p) userHidden = false;
+      curPhase = p;
+      update();
+    });
+    // Troca de etapa/modo dispara resize (pokeResize) — reavaliamos aqui.
+    window.addEventListener("resize", update);
+    if (pipHide) pipHide.addEventListener("click", function () { userHidden = true; update(); });
+
+    // Arrastável pela barra, limitado ao viewer.
+    if (pipBar) pipBar.addEventListener("pointerdown", function (e) {
+      if (e.target === pipHide) return;
+      e.preventDefault();
+      try { pipBar.setPointerCapture(e.pointerId); } catch (err) {}
+      var vr = viewer.getBoundingClientRect();
+      var pr = pip.getBoundingClientRect();
+      var offX = e.clientX - pr.left, offY = e.clientY - pr.top;
+      function move(ev) {
+        var x = Math.min(Math.max(0, ev.clientX - vr.left - offX), Math.max(0, vr.width - pr.width));
+        var y = Math.min(Math.max(0, ev.clientY - vr.top - offY), Math.max(0, vr.height - pr.height));
+        pip.style.left = x + "px";
+        pip.style.top = y + "px";
+        pip.style.right = "auto";
+      }
+      function up() {
+        try { pipBar.releasePointerCapture(e.pointerId); } catch (err) {}
+        pipBar.removeEventListener("pointermove", move);
+        pipBar.removeEventListener("pointerup", up);
+        pipBar.removeEventListener("pointercancel", up);
+      }
+      pipBar.addEventListener("pointermove", move);
+      pipBar.addEventListener("pointerup", up);
+      pipBar.addEventListener("pointercancel", up);
+    });
+  }
+
+  // =================================================================
   // INICIALIZAÇÃO
   // =================================================================
   function main() {
@@ -3077,6 +3168,7 @@
     initMobileMode();
     initMobilePanel();
     initConsoleMode();
+    initAcqPip();
   }
 
   if (document.readyState === "loading") {
