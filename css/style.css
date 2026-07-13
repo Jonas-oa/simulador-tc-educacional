@@ -1185,7 +1185,7 @@ body.console-mode:not(.is-mobile) #pane-proto .dash-pane__body {
    do viewer de aquisição. Fixa uma altura confortável e garante que as
    regras de mob-aq (que ocultam #pane-sim) não escondam o viewport
    reparentado para dentro do PiP. */
-body.is-mobile.mob-aq #ws-slice-viewer { flex-direction: column; align-items: stretch; justify-content: flex-start; aspect-ratio: auto; min-height: 70vh; }
+body.is-mobile.mob-aq #ws-slice-viewer { flex-direction: column; align-items: stretch; justify-content: flex-start; aspect-ratio: auto; min-height: 46vh; }
 body.is-mobile.mob-aq .pip { position: relative; right: auto; top: auto; left: auto; width: 100%; height: 240px; margin: 0 0 10px; flex: 0 0 auto; }
 body.is-mobile.mob-aq .pip__body .viewport { display: block !important; }
 body.is-mobile.mob-aq .ws-overlay { position: static; }
@@ -1198,13 +1198,13 @@ body.is-mobile.mob-aq .ws-overlay--bottom { background: none; margin-top: auto; 
    2) A sala 3D fica sempre visível durante a aquisição: uma faixa 3D no
       topo do quadrante de exame (o PiP desktop não vale no celular).
    ===================================================================== */
-body.is-mobile.mob-aq #pane-acq { min-height: 78vh; }
-body.is-mobile.mob-aq #pane-acq .ws-viewer--full { min-height: 62vh; }
+body.is-mobile.mob-aq #pane-acq { min-height: auto; }
+body.is-mobile.mob-aq #pane-acq .ws-viewer--full { min-height: 44vh; }
 
 /* Faixa 3D fixa no topo da aquisição (mobile): o .viewport REAL é
    reparentado para cá durante topograma/posicionamento/volume. */
 .acq3d {
-  position: relative; width: 100%; height: 30vh; min-height: 180px;
+  position: relative; width: 100%; height: 19vh; min-height: 116px;
   border-bottom: 1px solid var(--border-strong);
   background: #0a1018; overflow: hidden; flex: 0 0 auto;
 }
