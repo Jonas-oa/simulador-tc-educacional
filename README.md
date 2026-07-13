@@ -108,6 +108,17 @@ etapa futura)
   no desktop-console e também no celular (aba Exame), o viewport 3D é
   reparentado para o PiP e acompanha a mesa antes/durante/depois do scan.
 
+**Correções mobile — aquisição (revisão 2026-07d)**
+- Cache do topograma quebrado (REV bump): a versão HORIZONTAL passa a
+  carregar de fato no celular (o arquivo vertical antigo ficava em cache).
+- Sala 3D sempre visível na etapa Exame do celular: faixa 3D fixa no topo
+  do quadrante de aquisição (o viewport REAL é reparentado; PiP flutuante
+  segue valendo só no desktop). Quadrante de exame ganhou altura explícita
+  no mobile para o topograma caber e o fitTopo medir certo.
+- Fluxo MOVER→Iniciar mais claro: o botão MOVER recebe destaque quando é
+  a próxima ação (faixa válida, mesa fora de posição) e o Iniciar só se
+  realça quando a mesa chega à posição inicial.
+
 **Console guiado + avaliação (revisão 2026-07c)**
 - Console guiado no desktop (padrão): etapas 1 Sala → 2 Paciente →
   3 Protocolo → 4 Exame em tela cheia, como nos consoles reais

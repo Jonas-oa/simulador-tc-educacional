@@ -2150,7 +2150,7 @@
     if (!box || !img || !slider || !startBtn) return;
 
     var BASE = "assets/volumes/cranio/";
-    var REV = "20260712b"; // bump ao trocar assets — quebra cache do GitHub Pages
+    var REV = "20260712c"; // bump ao trocar assets — quebra cache do GitHub Pages
     function bust(path) { return BASE + path + (path.indexOf("?") < 0 ? "?v=" + REV : "&v=" + REV); }
     var manifest = null;
     var loaded = false;
@@ -2338,6 +2338,10 @@
         if (moveBtn) {
           moveBtn.hidden = !gated;
           moveBtn.disabled = !ok || isMoving;
+          // Realça o MOVER quando é a próxima ação (faixa válida, mesa fora
+          // de posição) e tira o realce do Iniciar até a mesa chegar.
+          moveBtn.classList.toggle("ws-btn--primary", gated && ok && !atStart && !isMoving);
+          startBtn.classList.toggle("ws-btn--primary", !(gated && !atStart));
         }
       }
       if (!readout) return;
@@ -3199,6 +3203,8 @@
     var pipBody = document.getElementById("pip-body");
     var pipBar = document.getElementById("pip-bar");
     var pipHide = document.getElementById("pip-hide");
+    var acq3d = document.getElementById("acq3d");
+    var acq3dBody = document.getElementById("acq3d-body");
     var viewer = document.getElementById("ws-slice-viewer");
     var vp = document.querySelector("#pane-sim .viewport");
     if (!pip || !pipBody || !viewer || !vp) return;
@@ -3208,25 +3214,35 @@
     var curPhase = "idle";
     var userHidden = false;
 
+    // Devolve o viewport 3D ao quadrante da Sala.
+    function toHome() {
+      if (vp.parentNode !== home) home.insertBefore(vp, homeNext);
+      pip.hidden = true;
+      if (acq3d) acq3d.hidden = true;
+    }
+
     function update() {
-      // Onde estamos na etapa "Exame"?
       var b = document.body;
+      var mobile = b.classList.contains("is-mobile");
       var onExamDesktop = !!(consoleUiApi && consoleUiApi.isConsole() && consoleUiApi.getStep() === "acq");
-      var onExamMobile = b.classList.contains("is-mobile") && b.classList.contains("mob-aq");
-      var onExam = onExamDesktop || onExamMobile;
-      // Sala 3D fica SEMPRE visível na etapa Exame (não só durante a
-      // aquisição), para o aluno acompanhar a mesa antes/depois do scan.
-      var want = onExam && !userHidden;
-      var inPip = (vp.parentNode === pipBody);
-      if (want && !inPip) {
-        pipBody.appendChild(vp);
-        pip.hidden = false;
-      } else if (!want && inPip) {
-        home.insertBefore(vp, homeNext);
+      var onExamMobile = mobile && b.classList.contains("mob-aq");
+      // Sala 3D fica SEMPRE visível na etapa Exame (antes, durante e depois
+      // da aquisição), para o aluno acompanhar a mesa.
+      var want = (onExamDesktop || onExamMobile) && !userHidden;
+      if (!want) { toHome(); return; }
+      // Destino conforme a plataforma: faixa fixa no topo (celular) ou
+      // janela flutuante sobre o viewer (desktop).
+      if (mobile && acq3dBody) {
+        if (vp.parentNode !== acq3dBody) acq3dBody.appendChild(vp);
+        acq3d.hidden = false;
         pip.hidden = true;
       } else {
-        pip.hidden = !want;
+        if (vp.parentNode !== pipBody) pipBody.appendChild(vp);
+        pip.hidden = false;
+        if (acq3d) acq3d.hidden = true;
       }
+      // O ResizeObserver do renderer reajusta o canvas ao reparentar.
+      requestAnimationFrame(function () { window.dispatchEvent(new Event("resize")); });
     }
 
     document.addEventListener("ct:phase", function (e) {
