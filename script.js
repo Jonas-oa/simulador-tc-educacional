@@ -2150,7 +2150,7 @@
     if (!box || !img || !slider || !startBtn) return;
 
     var BASE = "assets/volumes/cranio/";
-    var REV = "20260712c"; // bump ao trocar assets — quebra cache do GitHub Pages
+    var REV = "20260712d"; // bump ao trocar assets — quebra cache do GitHub Pages
     function bust(path) { return BASE + path + (path.indexOf("?") < 0 ? "?v=" + REV : "&v=" + REV); }
     var manifest = null;
     var loaded = false;
@@ -2166,12 +2166,14 @@
     var ROT_S = 1.0;         // tempo de rotação do gantry (s/volta) no helicoidal
 
     // Caixa de planejamento (%). Zonas-alvo recalibradas para o topograma
-    // HORIZONTAL (decúbito dorsal: face p/ CIMA, vértice à DIREITA, base à
-    // esquerda). Faixa CC = linhas verticais (left/right); FOV A-P =
-    // horizontais (top/bottom). Didáticas — validação clínica do usuário.
-    var DEFAULT_BOX = { top: 6, bottom: 58, left: 34, right: 93 };
-    var boxState = { top: 6, bottom: 58, left: 34, right: 93 };
-    var TARGET = { top: [0, 16], bottom: [46, 70], left: [24, 44], right: [82, 98] };
+    // HORIZONTAL correto (decúbito dorsal: face p/ CIMA, VÉRTICE à ESQUERDA,
+    // base à direita — rotação anti-horária do original, confirmada pela
+    // posição dos dentes/mandíbula). Faixa CC = linhas verticais
+    // (esquerda=vértice, direita=base); FOV A-P = horizontais.
+    // Didáticas — validação clínica do usuário.
+    var DEFAULT_BOX = { top: 42, bottom: 94, left: 7, right: 66 };
+    var boxState = { top: 42, bottom: 94, left: 7, right: 66 };
+    var TARGET = { top: [30, 54], bottom: [84, 100], left: [2, 18], right: [56, 76] };
     var MIN_GAP = 6; // % mínimo entre linhas opostas
     var lastSlice = 0; // último corte pintado na aquisição (p/ review)
     var lastAcq = null; // parâmetros da última aquisição (p/ relatório)
@@ -2189,17 +2191,19 @@
     var isMoving = false; // MOVER em andamento
 
     // Posição (m) da mesa correspondente ao INÍCIO da faixa planejada.
-    // Mapa imagem→mesa: fração x da imagem (0=esquerda/base, 1=direita/
-    // vértice); caudo-cranial varre esquerda→direita com a mesa saindo;
-    // crânio-caudal varre direita→esquerda com a mesa entrando.
+    // Mapa imagem→mesa: fração x da imagem (0=esquerda/VÉRTICE, 1=direita/
+    // base). Caudo-cranial: mesa SAI, varredura base→vértice (imagem revela
+    // direita→esquerda; f = 1−k). Crânio-caudal: mesa ENTRA, vértice→base
+    // (f = k). O início da faixa é a extremidade correspondente.
     function volumeStartZ() {
       if (!topoRef) return null;
       var L = TOPO_LEN_MM / 1000;
       if (topoRef.dir === "craniocaudal") {
-        var k0 = 1 - (boxState.right / 100); // progresso até o vértice planejado
+        var k0 = boxState.left / 100;             // até o vértice planejado
         return topoRef.startZ - L * k0;
       }
-      return topoRef.startZ + L * (boxState.left / 100); // até a base planejada
+      var k0c = 1 - (boxState.right / 100);       // até a base planejada
+      return topoRef.startZ + L * k0c;
     }
 
     // Ajusta o topograma para caber no quadrante preservando a proporção
@@ -2321,9 +2325,9 @@
     function inZone(v, z) { return v >= z[0] && v <= z[1]; }
     function problems() {
       var p = [];
-      if (boxState.right - boxState.left < MIN_GAP) p.push("A faixa está invertida ou muito estreita (base à esquerda, vértice à direita).");
-      else if (!inZone(boxState.left, TARGET.left)) p.push("Leve o limite esquerdo até a base do crânio.");
-      else if (!inZone(boxState.right, TARGET.right)) p.push("Leve o limite direito até o vértice.");
+      if (boxState.right - boxState.left < MIN_GAP) p.push("A faixa está invertida ou muito estreita (vértice à esquerda, base à direita).");
+      else if (!inZone(boxState.left, TARGET.left)) p.push("Leve o limite esquerdo até o vértice.");
+      else if (!inZone(boxState.right, TARGET.right)) p.push("Leve o limite direito até a base do crânio.");
       if (boxState.bottom - boxState.top < MIN_GAP) p.push("O FOV está invertido ou muito estreito.");
       else if (!inZone(boxState.top, TARGET.top) || !inZone(boxState.bottom, TARGET.bottom)) p.push("Ajuste o FOV para cobrir o crânio (anterior/posterior).");
       return p;
@@ -2403,6 +2407,7 @@
     }
     function toIdle() {
       phase = "idle"; loaded = false; lastSlice = 0; lastAcq = null;
+      if (ctrl) ctrl.classList.remove("is-acquiring");
       announcePhase("idle");
       topoRef = null; atStart = false; isMoving = false;
       stopAnimations();
@@ -2422,15 +2427,16 @@
 
     // Topograma com física real: tubo ESTACIONÁRIO, a MESA translada o
     // paciente pelo gantry e a imagem se revela linha a linha em sincronia
-    // com a posição real da mesa 3D. A direção vem do protocolo:
-    //   caudo-cranial → mesa SAI (revela da base, à esquerda, p/ o vértice)
-    //   crânio-caudal → mesa ENTRA (revela do vértice, à direita, p/ a base)
+    // com a posição real da mesa 3D. Orientação: VÉRTICE à esquerda, base
+    // à direita. Direção do protocolo:
+    //   caudo-cranial → mesa SAI (revela da base, à DIREITA, p/ o vértice)
+    //   crânio-caudal → mesa ENTRA (revela do vértice, à ESQUERDA, p/ a base)
     function setTopoClip(k) {
       var pct = ((1 - k) * 100).toFixed(2);
       var pp = protocolParams();
       topoImg.style.clipPath = (pp.direcao === "craniocaudal")
-        ? "inset(0 0 0 " + pct + "%)"
-        : "inset(0 " + pct + "% 0 0)";
+        ? "inset(0 " + pct + "% 0 0)"
+        : "inset(0 0 0 " + pct + "%)";
     }
     function toTopoAcq() {
       phase = "topoAcq";
@@ -2490,6 +2496,7 @@
 
     function toPlan(keepBox) {
       phase = "plan";
+      if (ctrl) ctrl.classList.remove("is-acquiring");
       announcePhase("plan");
       topoImg.style.clipPath = "";
       if (topoBox) topoBox.hidden = false;
@@ -2623,9 +2630,10 @@
         lastSlice = n;
         img.src = srcFor(n);
         slider.value = n;
-        counter.textContent = "Adquirindo… corte " + (idx + 1) + " / " + total +
+        counter.textContent = "ADQUIRINDO — corte " + (idx + 1) + " / " + total +
           " · mesa a " + Math.round(speed) + " mm/s";
       }
+      if (ctrl) ctrl.classList.add("is-acquiring");
       paintProg(0);
       soundStart("vol", ROT_S);
       if (tableDriveApi) {
@@ -2665,10 +2673,13 @@
 
     function toReview() {
       phase = "review";
+      if (ctrl) ctrl.classList.remove("is-acquiring");
       announcePhase("review");
       buildReport();
-      if (reportEl) reportEl.hidden = false;
-      if (reportBtn) reportBtn.hidden = false; loaded = true;
+      // O relatório NÃO cobre a imagem automaticamente — foco no exame;
+      // fica disponível no botão destacado.
+      if (reportEl) reportEl.hidden = true;
+      if (reportBtn) { reportBtn.hidden = false; reportBtn.classList.add("ws-btn--primary"); } loaded = true;
       slider.disabled = false;
       startBtn.disabled = true; startBtn.textContent = "Exame adquirido";
       if (stopBtn) stopBtn.disabled = false;
@@ -2754,30 +2765,6 @@
       if (!reportEl) return;
       if (reportEl.hidden) buildReport();
       reportEl.hidden = !reportEl.hidden;
-    });
-    var quizBtn = document.getElementById("ws-quiz-check");
-    var quizRes = document.getElementById("ws-quiz-result");
-    if (quizBtn) quizBtn.addEventListener("click", function () {
-      var hits = 0, answered = 0;
-      ["q1", "q2", "q3"].forEach(function (q) {
-        var inputs = document.querySelectorAll('input[name="' + q + '"]');
-        Array.prototype.forEach.call(inputs, function (inp) {
-          var lab = inp.closest ? inp.closest("label") : null;
-          if (lab) lab.classList.remove("q-ok", "q-bad");
-        });
-        Array.prototype.forEach.call(inputs, function (inp) {
-          var lab = inp.closest ? inp.closest("label") : null;
-          if (inp.checked) {
-            answered++;
-            var ok = inp.hasAttribute("data-ok");
-            if (ok) hits++;
-            if (lab) lab.classList.add(ok ? "q-ok" : "q-bad");
-          } else if (inp.hasAttribute("data-ok") && lab) {
-            lab.classList.add("q-ok"); // mostra a correta
-          }
-        });
-      });
-      if (quizRes) quizRes.textContent = answered === 0 ? "Responda antes de corrigir." : hits + " / 3 corretas";
     });
     topoImg.addEventListener("load", fitTopo);
     window.addEventListener("resize", fitTopo);

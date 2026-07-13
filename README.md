@@ -108,6 +108,19 @@ etapa futura)
   no desktop-console e também no celular (aba Exame), o viewport 3D é
   reparentado para o PiP e acompanha a mesa antes/durante/depois do scan.
 
+**Aquisição — orientação correta + foco no exame (revisão 2026-07e)**
+- Topograma horizontal CORRIGIDO: inspeção anatômica (dentes/mandíbula)
+  mostrou que no original a face está à DIREITA — a rotação certa é a
+  ANTI-horária: decúbito dorsal com VÉRTICE à esquerda e base à direita.
+  Geometria toda remapeada (zonas-alvo, revelação por direção, MOVER) e
+  REV de assets bumpado (recarregar sem cache uma vez).
+- Volume: o fluxo estava correto — o defeito era de percepção (varredura
+  de ~4 s com primeiros cortes quase pretos e o relatório abrindo por
+  cima ao final). Agora o relatório NÃO abre sozinho (botão "Relatório"
+  destacado na revisão) e o contador de aquisição ganhou destaque pulsante.
+- Quiz removido por ora (pedido do usuário — foco no exame). O código do
+  relatório permanece.
+
 **Correções mobile — aquisição (revisão 2026-07d)**
 - Cache do topograma quebrado (REV bump): a versão HORIZONTAL passa a
   carregar de fato no celular (o arquivo vertical antigo ficava em cache).
