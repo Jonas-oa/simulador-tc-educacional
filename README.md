@@ -100,6 +100,27 @@ etapa futura)
 - Tema claro/escuro. Layout mobile (vertical) otimizado; barra de
   status com indicadores dinâmicos; painel de mensagens.
 
+**Console guiado + avaliação (revisão 2026-07c)**
+- Console guiado no desktop (padrão): etapas 1 Sala → 2 Paciente →
+  3 Protocolo → 4 Exame em tela cheia, como nos consoles reais
+  (Somaris/IACI/ScanLab). Banner persistente (paciente · protocolo ·
+  mesa · status) e pontos âmbar de pendência por etapa. Botão ⊞ alterna
+  para o modo painel (4 quadrantes com divisórias), tudo persistido.
+- PiP da sala 3D: durante topograma/posicionamento/volume no modo
+  console, o viewport 3D REAL é reparentado para uma janela flutuante
+  arrastável sobre o viewer — o aluno vê a mesa se movendo enquanto a
+  imagem cresce (o ResizeObserver do renderer reajusta o canvas).
+- Isocentro (topograma lateral): ao iniciar o scout, o desvio vertical
+  do eixo do paciente vs. ISO_Y é medido; >4 cm gera aviso didático de
+  magnificação/erro de dose (AAPM). Registrado no relatório.
+- Relatório didático na revisão: paciente, protocolo/direção, faixa,
+  FOV, velocidade da mesa, isocentro e DLP ≈ CTDIvol × comprimento —
+  sem validade clínica/dosimétrica. Quiz de fixação (3 questões).
+- Roadmap (dependem de novos volumes/insumos clínicos do usuário):
+  comandos de respiração sintetizados (tórax/abdome), injetora de
+  contraste com delays, novas regiões em assets/volumes/, modo
+  instrutor (exportar/importar cenários).
+
 **Aquisição — refinamentos (revisão 2026-07b)**
 - Topograma dimensionado por JS (fitTopo) para caber sempre no quadrante,
   em qualquer proporção, com o box das linhas casando com a imagem.
