@@ -2150,7 +2150,7 @@
     if (!box || !img || !slider || !startBtn) return;
 
     var BASE = "assets/volumes/cranio/";
-    var REV = "20260712d"; // bump ao trocar assets — quebra cache do GitHub Pages
+    var REV = "20260713a"; // bump ao trocar assets — quebra cache do GitHub Pages
     function bust(path) { return BASE + path + (path.indexOf("?") < 0 ? "?v=" + REV : "&v=" + REV); }
     var manifest = null;
     var loaded = false;
