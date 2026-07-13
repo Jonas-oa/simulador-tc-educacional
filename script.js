@@ -3097,6 +3097,12 @@
       requestAnimationFrame(function () { window.dispatchEvent(new Event("resize")); });
     }
 
+    // Console guiado é exclusivo de telas largas; em telefones o controle
+    // é o seletor fixo inferior do modo celular.
+    function isDesktop() {
+      return !body.classList.contains("is-mobile") && window.innerWidth >= 901;
+    }
+
     function setDot(step, show) {
       var d = document.getElementById("cdot-" + step);
       if (d) d.hidden = !show;
@@ -3123,13 +3129,19 @@
       banner.textContent = parts.join("  ·  ");
     }
 
-    function apply() {
-      var desktop = !body.classList.contains("is-mobile");
-      body.classList.toggle("console-mode", state.on);
+    // Aplica classes/visibilidade SEM disparar resize (usada também no
+    // handler de resize — evita loop com o pokeResize).
+    function applyClasses() {
+      var active = state.on && isDesktop();
+      body.classList.toggle("console-mode", active);
       STEPS.forEach(function (st) {
-        body.classList.toggle("cstep-" + st, state.on && st === state.step);
+        body.classList.toggle("cstep-" + st, active && st === state.step);
       });
-      bar.hidden = !(state.on && desktop);
+      bar.hidden = !active;
+    }
+
+    function apply() {
+      applyClasses();
       toggle.setAttribute("aria-pressed", String(state.on));
       var btns = bar.querySelectorAll(".cstep");
       Array.prototype.forEach.call(btns, function (b) {
@@ -3155,15 +3167,14 @@
         : "Modo painel: 4 quadrantes simultâneos com divisórias ajustáveis.", "info");
     });
 
-    // Entrar/sair do modo celular esconde/mostra a barra (sem loop de resize).
-    window.addEventListener("resize", function () {
-      bar.hidden = !(state.on && !body.classList.contains("is-mobile"));
-    });
+    // Entrar/sair do modo celular ou cruzar o breakpoint de 900px
+    // liga/desliga o console (sem loop: applyClasses não dispara resize).
+    window.addEventListener("resize", applyClasses);
 
     setInterval(function () { if (!bar.hidden) updateInfo(); }, 1200);
 
     consoleUiApi = {
-      isConsole: function () { return state.on && !body.classList.contains("is-mobile"); },
+      isConsole: function () { return state.on && isDesktop(); },
       getStep: function () { return state.step; },
       setStep: function (st) {
         if (STEPS.indexOf(st) < 0) return;

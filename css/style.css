@@ -1168,3 +1168,15 @@ body.console-mode:not(.is-mobile) #pane-proto .dash-pane__body {
 .ws-quiz__list label.q-bad { color: var(--accent-red); }
 .ws-quiz__result { font-size: 0.8rem; align-self: center; color: var(--text-secondary); }
 .ws-report[hidden] { display: none !important; }
+
+/* Correções mobile/tela estreita (console guiado):
+   1) [hidden] sempre vence display de classe (PiP aparecia vazio);
+   2) a barra de etapas do console é EXCLUSIVA de telas largas — em
+      telefones o controle é o seletor fixo inferior do modo celular;
+   3) em tela estreita o modo console não esconde quadrantes: vale o
+      empilhamento normal. */
+.pip[hidden], .console-steps[hidden] { display: none !important; }
+@media (max-width: 900px) {
+  .console-steps { display: none !important; }
+  body.console-mode:not(.is-mobile) .dash-pane { display: flex !important; }
+}
