@@ -1762,6 +1762,7 @@
   // Protocolo selecionado para o exame (nome exibido na tela de aquisição).
   var examProtocol = { name: "", data: null, refresh: null };
   var tableDriveApi = null; // preenchida pela cena 3D (aquisição dirigida pela mesa)
+  var consoleUiApi = null;  // preenchida pelo console guiado (modo/etapa atuais)
 
   function initPatients() {
     var fPront = document.getElementById("pac-prontuario");
@@ -2712,7 +2713,9 @@
     }
 
     function apply() {
-      if (document.body.classList.contains("is-mobile") || window.innerWidth < MOBILE) {
+      if (document.body.classList.contains("is-mobile") ||
+          document.body.classList.contains("console-mode") ||
+          window.innerWidth < MOBILE) {
         colLeft.style.flex = "";
         paneSim.style.flex = "";
         paneAcq.style.flex = "";
@@ -2733,7 +2736,9 @@
 
     function makeDraggable(gutter, key, axis) {
       gutter.addEventListener("pointerdown", function (e) {
-        if (document.body.classList.contains("is-mobile") || window.innerWidth < MOBILE) return;
+        if (document.body.classList.contains("is-mobile") ||
+            document.body.classList.contains("console-mode") ||
+            window.innerWidth < MOBILE) return;
         e.preventDefault();
         try { gutter.setPointerCapture(e.pointerId); } catch (err) {}
         dash.classList.add("dashboard--dragging");
@@ -2951,6 +2956,115 @@
   }
 
   // =================================================================
+  // CONSOLE GUIADO (desktop) — fluxo por etapas como nos consoles reais.
+  // Uma etapa por vez em tela cheia (1 Sala → 2 Paciente → 3 Protocolo →
+  // 4 Exame), banner persistente do paciente e indicadores de pendência.
+  // O modo painel (4 quadrantes) permanece disponível pelo botão ⊞.
+  // Estado (modo + etapa) persistido em localStorage.
+  // =================================================================
+  function initConsoleMode() {
+    var body = document.body;
+    var bar = document.getElementById("console-steps");
+    var toggle = document.getElementById("console-toggle");
+    var banner = document.getElementById("console-banner");
+    if (!bar || !toggle) return;
+
+    var KEY = "simuladorTC.console";
+    var STEPS = ["sim", "pac", "proto", "acq"];
+    var state = { on: true, step: "sim" }; // console é o padrão no desktop
+    try {
+      var saved = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (saved) {
+        if (saved.on === false) state.on = false;
+        if (STEPS.indexOf(saved.step) >= 0) state.step = saved.step;
+      }
+    } catch (e) { /* sem persistência */ }
+    function persist() {
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* sem persistência */ }
+    }
+
+    function pokeResize() {
+      requestAnimationFrame(function () { window.dispatchEvent(new Event("resize")); });
+    }
+
+    function setDot(step, show) {
+      var d = document.getElementById("cdot-" + step);
+      if (d) d.hidden = !show;
+    }
+
+    // Pendências didáticas + banner persistente (nome · prontuário ·
+    // protocolo · posição/status da mesa, espelhados do display).
+    function updateInfo() {
+      var pac = (examSessionApi && examSessionApi.get) ? examSessionApi.get() : null;
+      var prot = examProtocol ? examProtocol.data : null;
+      var onTable = tableDriveApi && tableDriveApi.isPatientOnTable && tableDriveApi.isPatientOnTable();
+      setDot("pac", !pac);
+      setDot("proto", !prot);
+      setDot("sim", !!(pac && tableDriveApi && !onTable));
+      setDot("acq", !!(pac && prot && (!tableDriveApi || onTable)));
+      if (!banner) return;
+      var parts = [];
+      parts.push(pac ? (pac.nome + " · " + (pac.prontuario || "s/ prontuário")) : "Sem paciente em exame");
+      if (prot) parts.push("Prot.: " + prot.nome);
+      var dt = document.getElementById("display-table");
+      var ds = document.getElementById("display-status");
+      if (dt && dt.textContent) parts.push("Mesa " + dt.textContent.trim());
+      if (ds && ds.textContent) parts.push(ds.textContent.trim());
+      banner.textContent = parts.join("  ·  ");
+    }
+
+    function apply() {
+      var desktop = !body.classList.contains("is-mobile");
+      body.classList.toggle("console-mode", state.on);
+      STEPS.forEach(function (st) {
+        body.classList.toggle("cstep-" + st, state.on && st === state.step);
+      });
+      bar.hidden = !(state.on && desktop);
+      toggle.setAttribute("aria-pressed", String(state.on));
+      var btns = bar.querySelectorAll(".cstep");
+      Array.prototype.forEach.call(btns, function (b) {
+        b.classList.toggle("is-active", b.getAttribute("data-step") === state.step);
+      });
+      updateInfo();
+      pokeResize();
+    }
+
+    bar.addEventListener("click", function (e) {
+      var b = e.target && e.target.closest ? e.target.closest(".cstep") : null;
+      if (!b) return;
+      state.step = b.getAttribute("data-step");
+      persist();
+      apply();
+    });
+    toggle.addEventListener("click", function () {
+      state.on = !state.on;
+      persist();
+      apply();
+      showMessage(state.on
+        ? "Console guiado: uma etapa por vez (1 Sala → 2 Paciente → 3 Protocolo → 4 Exame)."
+        : "Modo painel: 4 quadrantes simultâneos com divisórias ajustáveis.", "info");
+    });
+
+    // Entrar/sair do modo celular esconde/mostra a barra (sem loop de resize).
+    window.addEventListener("resize", function () {
+      bar.hidden = !(state.on && !body.classList.contains("is-mobile"));
+    });
+
+    setInterval(function () { if (!bar.hidden) updateInfo(); }, 1200);
+
+    consoleUiApi = {
+      isConsole: function () { return state.on && !body.classList.contains("is-mobile"); },
+      getStep: function () { return state.step; },
+      setStep: function (st) {
+        if (STEPS.indexOf(st) < 0) return;
+        state.step = st; persist(); apply();
+      }
+    };
+
+    apply();
+  }
+
+  // =================================================================
   // INICIALIZAÇÃO
   // =================================================================
   function main() {
@@ -2962,6 +3076,7 @@
     initDashboardSplit();
     initMobileMode();
     initMobilePanel();
+    initConsoleMode();
   }
 
   if (document.readyState === "loading") {

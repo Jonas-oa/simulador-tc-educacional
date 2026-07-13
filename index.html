@@ -41,11 +41,22 @@
       <button id="mobile-toggle" class="icon-btn" type="button" aria-label="Modo celular" title="Modo celular" aria-pressed="false">
         <svg viewBox="0 0 24 24" class="icon-btn__icon" aria-hidden="true"><path d="M17 1H7a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm0 18H7V5h10v14zm-3.5 3h-3a.75.75 0 0 1 0-1.5h3a.75.75 0 0 1 0 1.5z"/></svg>
       </button>
+      <button id="console-toggle" class="icon-btn" type="button" aria-label="Alternar console guiado / painel de quadrantes" title="Console guiado / Painel" aria-pressed="false">
+        <svg viewBox="0 0 24 24" class="icon-btn__icon" aria-hidden="true"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
+      </button>
       <button id="theme-toggle" class="icon-btn" type="button" aria-label="Alternar tema claro/escuro" title="Alternar tema">
         <svg viewBox="0 0 24 24" class="icon-btn__icon" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36A5.5 5.5 0 0 1 12 3z"/></svg>
       </button>
     </div>
   </header>
+
+  <nav class="console-steps" id="console-steps" hidden aria-label="Etapas do console de operação">
+    <button class="cstep" data-step="sim" type="button"><span class="cstep__num">1</span>Sala<span class="cstep__dot" id="cdot-sim" hidden></span></button>
+    <button class="cstep" data-step="pac" type="button"><span class="cstep__num">2</span>Paciente<span class="cstep__dot" id="cdot-pac" hidden></span></button>
+    <button class="cstep" data-step="proto" type="button"><span class="cstep__num">3</span>Protocolo<span class="cstep__dot" id="cdot-proto" hidden></span></button>
+    <button class="cstep" data-step="acq" type="button"><span class="cstep__num">4</span>Exame<span class="cstep__dot" id="cdot-acq" hidden></span></button>
+    <div class="console-banner" id="console-banner">Sem paciente em exame</div>
+  </nav>
 
   <nav class="mobile-switch" id="mobile-switch" hidden aria-label="Navegação do modo celular">
     <button class="mobile-switch__btn is-active" id="mob-view-pos" type="button" data-mobile-view="3d" aria-current="page">
