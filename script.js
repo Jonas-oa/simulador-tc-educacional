@@ -3091,6 +3091,92 @@
   }
 
   // =================================================================
+  // MÁQUINA DE ESTADOS DA SESSÃO DE EXAME (backbone das 4 fases).
+  // Fonte única de verdade do "onde estou / o que falta" do fluxo
+  // Cadastro → Protocolo → Aquisição → Reconstrução. NÃO possui estado
+  // próprio de paciente/protocolo/mesa — apenas AGREGA os leitores que já
+  // existem (examSessionApi, examProtocol, tableDriveApi) + a fase da
+  // aquisição (evento ct:phase) e o núcleo puro (js/session-fsm.js). Emite
+  // "ct:session" quando o estado muda e expõe window.SimTC.session para os
+  // (futuros) módulos de reconstrução/layout consumirem UMA coisa só.
+  // =================================================================
+  function initSessionFSM() {
+    var core = (window.SimTC && window.SimTC.sessionCore) ? window.SimTC.sessionCore : null;
+    var acqPhase = "idle";
+    var reconStage = null; // "reconstructed" | "sent" — dirigido pelo módulo futuro
+    var current = null;
+    var lastSig = "";
+
+    function readFlags() {
+      var pac = (examSessionApi && examSessionApi.get) ? examSessionApi.get() : null;
+      var prot = (examProtocol && examProtocol.data) ? examProtocol.data : null;
+      var onTable = !!(tableDriveApi && tableDriveApi.isPatientOnTable && tableDriveApi.isPatientOnTable());
+      return { patient: !!pac, protocol: !!prot, positioned: onTable, _pac: pac, _prot: prot };
+    }
+
+    // Fallback mínimo se js/session-fsm.js não carregar (não deve acontecer,
+    // mas o app não pode depender disso para não quebrar).
+    function fallbackBuild(f) {
+      return {
+        stage: f.patient ? "patient" : "empty",
+        patient: f.patient, protocol: f.protocol, positioned: f.positioned,
+        acqPhase: acqPhase, reconStage: reconStage, hasTable: !!tableDriveApi,
+        protocolPending: f.patient && !f.protocol,
+        nextAction: f.patient ? (f.positioned ? "Inicie o topograma" : "Posicione o paciente na mesa (Decúbito)") : "Cadastre o paciente",
+        canStartTopogram: !!(f.patient && f.positioned && acqPhase === "idle"),
+        canStartVolume: acqPhase === "plan",
+        canReconstruct: acqPhase === "review"
+      };
+    }
+
+    function compute() {
+      var f = readFlags();
+      var st = core ? core.build(f, acqPhase, reconStage, !!tableDriveApi) : fallbackBuild(f);
+      st.pac = f._pac; st.prot = f._prot; // referências vivas p/ quem consome
+      return st;
+    }
+
+    function refresh() {
+      var st = compute();
+      var sig = core ? core.signature(st) : (st.stage + "|" + st.acqPhase);
+      current = st;
+      if (sig !== lastSig) {
+        lastSig = sig;
+        try { document.dispatchEvent(new CustomEvent("ct:session", { detail: st })); } catch (e) { /* sem suporte */ }
+      }
+      return st;
+    }
+
+    // A fase da aquisição chega pelo mesmo evento que o resto do app já usa.
+    document.addEventListener("ct:phase", function (e) {
+      acqPhase = (e && e.detail && e.detail.phase) || "idle";
+      refresh();
+    });
+
+    // Rede de segurança: paciente/protocolo/posição mudam por ação do usuário
+    // em pontos espalhados; reavaliar a cada 400 ms é barato e imperceptível
+    // (o app já usa polling semelhante no banner do console).
+    setInterval(refresh, 400);
+
+    window.SimTC = window.SimTC || {};
+    window.SimTC.session = {
+      get: function () { return current || refresh(); },
+      can: function (action) {
+        var s = current || refresh();
+        if (core) return core.can(action, s);
+        if (action === "startTopogram") return s.canStartTopogram;
+        if (action === "reconstruct") return s.canReconstruct;
+        return !!s.patient;
+      },
+      refresh: refresh,
+      setRecon: function (st) { reconStage = st || null; refresh(); },
+      STAGES: core ? core.STAGES.slice() : ["empty", "patient", "protocol", "positioned", "topogram", "acquired", "reconstructed", "sent"]
+    };
+
+    refresh();
+  }
+
+  // =================================================================
   // CONSOLE GUIADO (desktop) — fluxo por etapas como nos consoles reais.
   // Uma etapa por vez em tela cheia (1 Sala → 2 Paciente → 3 Protocolo →
   // 4 Exame), banner persistente do paciente e indicadores de pendência.
@@ -3151,6 +3237,11 @@
       var ds = document.getElementById("display-status");
       if (dt && dt.textContent) parts.push("Mesa " + dt.textContent.trim());
       if (ds && ds.textContent) parts.push(ds.textContent.trim());
+      // Próximo passo sugerido pela máquina de estados da sessão (backbone).
+      if (window.SimTC && window.SimTC.session) {
+        var ss = window.SimTC.session.get();
+        if (ss && ss.nextAction) parts.push("Próximo: " + ss.nextAction);
+      }
       banner.textContent = parts.join("  ·  ");
     }
 
@@ -3315,6 +3406,7 @@
     initWorkstationProtocols();
     initWorkstationViewer();
     initPatients();
+    initSessionFSM();
     initDashboardSplit();
     initMobileMode();
     initMobilePanel();

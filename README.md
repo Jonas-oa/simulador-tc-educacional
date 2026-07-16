@@ -108,6 +108,23 @@ etapa futura)
   no desktop-console e também no celular (aba Exame), o viewport 3D é
   reparentado para o PiP e acompanha a mesa antes/durante/depois do scan.
 
+**Máquina de estados da sessão + 1º módulo/testes (revisão 2026-07g)**
+- Backbone das 4 fases (Cadastro → Protocolo → Aquisição → Reconstrução):
+  núcleo PURO em `js/session-fsm.js` (`window.SimTC.sessionCore`) + wrapper
+  vivo `initSessionFSM()` no `script.js` que só AGREGA os leitores que já
+  existem (`examSessionApi`, `examProtocol`, `tableDriveApi`) e a fase da
+  aquisição (evento `ct:phase`). Não cria estado novo — fonte única de
+  verdade do "onde estou / o que falta".
+- Expõe `window.SimTC.session` (`get()`, `can()`, `refresh()`, `setRecon()`,
+  `STAGES`) e emite `ct:session` a cada mudança — os próximos módulos
+  (reconstrução, layout) consomem UMA coisa só. Não endurece gates atuais.
+- O banner do console passa a mostrar "Próximo: …" (a `nextAction` da FSM).
+- Primeiro passo do split modular acordado + rede de testes:
+  `node tests/session.js` (28 casos do núcleo puro) e
+  `node --check script.js js/session-fsm.js`. Sem npm/bundler (coerente
+  com o projeto — `package.json` fica fora do versionamento).
+- Racional e roadmap em `ESTUDO_FLUXO_TC_E_EXPERIENCIA.md` (seção 4).
+
 **Dose responsiva + tempo de aquisição (revisão 2026-07f)**
 - CTDIvol didático agora é DERIVADO dos parâmetros do console
   (`ctdiFromParams`): CTDIvol ≈ K·(mAs/pitch)·(kV/120)^2,6. Mudar kV, mAs
