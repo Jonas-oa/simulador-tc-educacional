@@ -108,6 +108,17 @@ etapa futura)
   no desktop-console e também no celular (aba Exame), o viewport 3D é
   reparentado para o PiP e acompanha a mesa antes/durante/depois do scan.
 
+**Dose responsiva + tempo de aquisição (revisão 2026-07f)**
+- CTDIvol didático agora é DERIVADO dos parâmetros do console
+  (`ctdiFromParams`): CTDIvol ≈ K·(mAs/pitch)·(kV/120)^2,6. Mudar kV, mAs
+  ou pitch passa a mudar a dose e o DLP no relatório — como no equipamento
+  real. Se o protocolo não tiver kV/mAs, cai no valor digitado no campo de
+  dose (compatibilidade). Sem validade dosimétrica — número de treinamento.
+- Tempo de aquisição (t = faixa ÷ velocidade da mesa) no contador da
+  aquisição e no relatório, com aviso quando passa de ~20 s (apneia típica).
+- Detalhes e roadmap (SSDE, modulação de corrente, apneia/contraste) em
+  `ESTUDO_FISICA_E_CONSISTENCIA.md`.
+
 **Aquisição — orientação correta + foco no exame (revisão 2026-07e)**
 - Topograma horizontal CORRIGIDO: inspeção anatômica (dentes/mandíbula)
   mostrou que no original a face está à DIREITA — a rotação certa é a

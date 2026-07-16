@@ -2165,6 +2165,24 @@
     var TOPO_SPEED_MMS = 100;// velocidade da mesa no scout (tubo estacionário)
     var ROT_S = 1.0;         // tempo de rotação do gantry (s/volta) no helicoidal
 
+    // CTDIvol DIDÁTICO derivado dos parâmetros do console. NÃO tem validade
+    // dosimétrica/clínica — serve para que a dose RESPONDA aos parâmetros como
+    // no equipamento real: CTDIvol cresce ~linear com o mAs, ~(kV/120)^2.6 e
+    // ~1/pitch (mAs efetivo = mAs/pitch no helicoidal). CTDI_K é a âncora
+    // (mGy por mAs a 120 kV, pitch 1) escolhida para dar números plausíveis de
+    // corpo; sem seleção de fantoma (16/32 cm), é uma aproximação de ensino.
+    var CTDI_K = 0.06, CTDI_KV_EXP = 2.6;
+    function ctdiFromParams(kv, mas, pitch) {
+      if (!(kv > 0) || !(mas > 0) || !(pitch > 0)) return NaN;
+      return CTDI_K * (mas / pitch) * Math.pow(kv / 120, CTDI_KV_EXP);
+    }
+    // parse tolerante de número em pt-BR ("120", "1,2", "64 × 0,6 mm" → 1º nº)
+    function numPtBr(s) {
+      if (s == null) return NaN;
+      var m = String(s).replace(/,/g, ".").match(/\d+(\.\d+)?/);
+      return m ? parseFloat(m[0]) : NaN;
+    }
+
     // Caixa de planejamento (%). Zonas-alvo recalibradas para o topograma
     // HORIZONTAL correto (decúbito dorsal: face p/ CIMA, VÉRTICE à ESQUERDA,
     // base à direita — rotação anti-horária do original, confirmada pela
@@ -2523,11 +2541,15 @@
       var pp = (lastAcq && lastAcq.pp) || protocolParams();
       var scanLen = lastAcq ? lastAcq.scanLen : 0;
       var speed = lastAcq ? lastAcq.speed : 0;
-      var dose = NaN;
-      if (prot && prot.dose) {
-        var m = String(prot.dose).replace(/,/g, ".").match(/\d+(\.\d+)?/);
-        if (m) dose = parseFloat(m[0]);
-      }
+      var tScan = (speed > 0 && scanLen > 0) ? scanLen / speed : NaN; // s
+      // CTDIvol: derivado de kV/mAs/pitch (responde aos parâmetros, como no
+      // console real); na falta de kV/mAs, usa o valor digitado no protocolo.
+      var kv = prot ? numPtBr(prot.kv) : NaN;
+      var mas = prot ? numPtBr(prot.mas) : NaN;
+      var doseCalc = ctdiFromParams(kv, mas, pp.pitch);
+      var doseManual = prot ? numPtBr(prot.dose) : NaN;
+      var dose = !isNaN(doseCalc) ? doseCalc : doseManual;
+      var doseCalculada = !isNaN(doseCalc);
       var dlp = (dose > 0 && scanLen > 0) ? dose * (scanLen / 10) : NaN;
       var iso = topoRef ? topoRef.isoOff : null;
       var isoTxt = (iso == null)
@@ -2540,9 +2562,18 @@
       rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · direção " + (pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)"));
       rows.push("<strong>Faixa varrida:</strong> " + Math.round(scanLen) + " mm · <strong>FOV A-P:</strong> " + Math.max(0, boxState.bottom - boxState.top).toFixed(0) + "% da imagem");
       rows.push("<strong>Mesa:</strong> " + Math.round(speed) + " mm/s (pitch " + pp.pitch + " × colimação " + pp.colim.toFixed(1) + " mm ÷ rotação " + ROT_S.toFixed(1) + " s)");
+      if (!isNaN(tScan)) {
+        var apneia = tScan > 20
+          ? ' — <span class="is-bad">acima de uma apneia típica (~20 s): considere pitch/colimação maiores ou comando de respiração</span>'
+          : '';
+        rows.push("<strong>Tempo de aquisição:</strong> " + tScan.toFixed(1) + " s (faixa " + Math.round(scanLen) + " mm ÷ " + Math.round(speed) + " mm/s)" + apneia);
+      }
       rows.push("<strong>Posicionamento no isocentro:</strong> " + isoTxt);
       if (!isNaN(dlp)) {
-        rows.push("<strong>Dose (didática):</strong> DLP ≈ CTDIvol " + dose + " mGy × " + (scanLen / 10).toFixed(1) + " cm = <strong>" + dlp.toFixed(0) + " mGy·cm</strong>");
+        var ctdiTxt = doseCalculada
+          ? "CTDIvol ≈ <strong>" + dose.toFixed(1) + " mGy</strong> (kV " + (kv || "—") + " · mAs " + (mas || "—") + " · pitch " + pp.pitch + ")"
+          : "CTDIvol " + dose.toFixed(1) + " mGy (valor do protocolo)";
+        rows.push("<strong>Dose (didática):</strong> " + ctdiTxt + " · DLP ≈ CTDIvol × " + (scanLen / 10).toFixed(1) + " cm = <strong>" + dlp.toFixed(0) + " mGy·cm</strong>");
       }
       rows.push("<em>Valores didáticos para treinamento de operação — sem validade clínica ou dosimétrica.</em>");
       bodyEl.innerHTML = rows.join("<br>");
@@ -2623,6 +2654,7 @@
       // Comprimento da varredura = faixa CC planejada no topograma (mm)
       var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
       var speed = Math.max(10, Math.min(120, (pp.pitch * pp.colim) / ROT_S)); // mm/s
+      var tScan = speed > 0 ? scanLen / speed : 0; // s (faixa ÷ velocidade)
       lastAcq = { scanLen: scanLen, speed: speed, pp: pp };
       function paintProg(k) {
         var idx = Math.round(k * (total - 1));
@@ -2631,7 +2663,7 @@
         img.src = srcFor(n);
         slider.value = n;
         counter.textContent = "ADQUIRINDO — corte " + (idx + 1) + " / " + total +
-          " · mesa a " + Math.round(speed) + " mm/s";
+          " · mesa a " + Math.round(speed) + " mm/s · " + tScan.toFixed(1) + " s";
       }
       if (ctrl) ctrl.classList.add("is-acquiring");
       paintProg(0);
