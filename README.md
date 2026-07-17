@@ -108,6 +108,21 @@ etapa futura)
   no desktop-console e também no celular (aba Exame), o viewport 3D é
   reparentado para o PiP e acompanha a mesa antes/durante/depois do scan.
 
+**FOV × RANGE na aquisição — faixa define o volume (revisão 2026-07h)**
+- Corrigida a divergência: a FAIXA (linhas esquerda/direita do topograma =
+  range no eixo Z) passa a definir QUANTOS cortes são adquiridos. Marcar
+  faixa curta adquire um sub-volume (menos cortes); o slider/contador do
+  review navegam só a série adquirida. Antes, o volume reproduzia sempre os
+  79 cortes independentemente da marcação.
+- Conceito separado: FOV = diâmetro no plano axial (zoom/pixel) → pertence à
+  RECONSTRUÇÃO. As linhas cima/baixo deixam de se chamar "FOV" e viram
+  "cobertura A-P", medida em mm (não %). Faixa e cobertura no readout/
+  relatório passam a mm; relatório mostra também o nº de cortes adquiridos.
+- Mapa faixa→cortes ancorado na anatomia do crânio (vértice/base = 7%/66%,
+  = DEFAULT_BOX). Regiões futuras trarão âncoras próprias no manifest.
+- Novo módulo puro `js/acq-geom.js` (SimTC.acqGeom: pctToSlice/sliceWindow/
+  sliceAtProgress) + `tests/acq-geom.js` (16 casos). 2º passo do split modular.
+
 **Máquina de estados da sessão + 1º módulo/testes (revisão 2026-07g)**
 - Backbone das 4 fases (Cadastro → Protocolo → Aquisição → Reconstrução):
   núcleo PURO em `js/session-fsm.js` (`window.SimTC.sessionCore`) + wrapper

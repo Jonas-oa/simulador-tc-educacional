@@ -2195,6 +2195,17 @@
     var MIN_GAP = 6; // % mínimo entre linhas opostas
     var lastSlice = 0; // último corte pintado na aquisição (p/ review)
     var lastAcq = null; // parâmetros da última aquisição (p/ relatório)
+    var acqWin = null;  // janela de cortes da última aquisição { lo, hi, count }
+
+    // Âncoras anatômicas do topograma de crânio (fração CC da imagem, %):
+    // onde estão o VÉRTICE (topo, à esquerda) e a BASE do crânio (à direita).
+    // Calibram o mapa FAIXA→cortes; coincidem com o DEFAULT_BOX, que é a
+    // varredura ideal de cabeça inteira. (Regiões futuras trarão suas próprias
+    // âncoras no manifest do respectivo volume.)
+    var ANAT_VERTICE_PCT = 7, ANAT_BASE_PCT = 66;
+    // Extensão física A-P do topograma inteiro (mm) — didática, calibrada com
+    // TOPO_LEN_MM e a proporção da imagem (~814×700). Converte cobertura A-P %→mm.
+    var TOPO_AP_MM = 260;
 
     // Anuncia a fase do exame (idle/topoAcq/plan/moving/volAcq/review)
     // para módulos desacoplados — ex.: o PiP da sala 3D no modo console.
@@ -2222,6 +2233,31 @@
       }
       var k0c = 1 - (boxState.right / 100);       // até a base planejada
       return topoRef.startZ + L * k0c;
+    }
+
+    // FOV × RANGE — a FAIXA (linhas esquerda/direita) é o RANGE no eixo Z
+    // (crânio-caudal): define QUANTOS cortes são adquiridos. A cobertura A-P
+    // (linhas cima/baixo) é outra coisa; o FOV como zoom/pixel do corte axial
+    // pertence à reconstrução, não a este mapa.
+    //
+    // Mapeia uma fração CC da imagem (%) → índice de corte axial. Premissa:
+    // axial_000 = corte mais INFERIOR (base). Vértice (topo, esquerda) = índice
+    // máximo; base (direita) = 0. Fora das âncoras, satura na ponta do stack.
+    // Lógica pura em js/acq-geom.js (SimTC.acqGeom), testável em Node; aqui
+    // só ligamos às âncoras e ao boxState, com fallback inline se o módulo
+    // não carregar (defensivo, como no session-fsm).
+    function sliceWindow(total) {
+      if (window.SimTC && window.SimTC.acqGeom) {
+        return window.SimTC.acqGeom.sliceWindow(boxState.left, boxState.right, total, ANAT_VERTICE_PCT, ANAT_BASE_PCT);
+      }
+      var maxN = total - 1, span = ANAT_BASE_PCT - ANAT_VERTICE_PCT;
+      function p2s(pct) {
+        if (span <= 0) return 0;
+        return Math.max(0, Math.min(maxN, Math.round((ANAT_BASE_PCT - pct) / span * maxN)));
+      }
+      var a = p2s(boxState.left), b = p2s(boxState.right);
+      var lo = Math.min(a, b), hi = Math.max(a, b);
+      return { lo: lo, hi: hi, count: hi - lo + 1 };
     }
 
     // Ajusta o topograma para caber no quadrante preservando a proporção
@@ -2325,11 +2361,16 @@
     function show(i) {
       if (!manifest) return;
       i = i | 0;
-      if (i < 0) i = 0;
-      if (i > manifest.cortes - 1) i = manifest.cortes - 1;
+      // Navega só a janela adquirida (a série é o sub-volume da faixa).
+      var lo = acqWin ? acqWin.lo : 0;
+      var hi = acqWin ? acqWin.hi : manifest.cortes - 1;
+      if (i < lo) i = lo;
+      if (i > hi) i = hi;
       img.src = srcFor(i);
       slider.value = i;
-      counter.textContent = "Corte " + (i + 1) + " / " + manifest.cortes;
+      var pos = acqWin ? (i - acqWin.lo + 1) : (i + 1);
+      var tot = acqWin ? acqWin.count : manifest.cortes;
+      counter.textContent = "Corte " + pos + " / " + tot;
     }
 
     // ---- caixa: render, validação, readout ----
@@ -2346,8 +2387,8 @@
       if (boxState.right - boxState.left < MIN_GAP) p.push("A faixa está invertida ou muito estreita (vértice à esquerda, base à direita).");
       else if (!inZone(boxState.left, TARGET.left)) p.push("Leve o limite esquerdo até o vértice.");
       else if (!inZone(boxState.right, TARGET.right)) p.push("Leve o limite direito até a base do crânio.");
-      if (boxState.bottom - boxState.top < MIN_GAP) p.push("O FOV está invertido ou muito estreito.");
-      else if (!inZone(boxState.top, TARGET.top) || !inZone(boxState.bottom, TARGET.bottom)) p.push("Ajuste o FOV para cobrir o crânio (anterior/posterior).");
+      if (boxState.bottom - boxState.top < MIN_GAP) p.push("A cobertura A-P está invertida ou muito estreita.");
+      else if (!inZone(boxState.top, TARGET.top) || !inZone(boxState.bottom, TARGET.bottom)) p.push("Ajuste a cobertura A-P para cobrir o crânio (anterior/posterior).");
       return p;
     }
     function renderReadout() {
@@ -2367,11 +2408,13 @@
         }
       }
       if (!readout) return;
-      var cc = Math.max(0, boxState.right - boxState.left).toFixed(0);
-      var ap = Math.max(0, boxState.bottom - boxState.top).toFixed(0);
+      var ccMm = Math.max(0, (boxState.right - boxState.left) / 100 * TOPO_LEN_MM);
+      var apMm = Math.max(0, (boxState.bottom - boxState.top) / 100 * TOPO_AP_MM);
+      var nCortes = manifest ? sliceWindow(manifest.cortes).count : 0;
       var pp = protocolParams();
       var dirTxt = pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)";
-      var msg = "Faixa CC: " + cc + "% · FOV A-P: " + ap + "% · Direção: " + dirTxt + ". ";
+      var msg = "Faixa: " + Math.round(ccMm) + " mm" + (nCortes ? " (~" + nCortes + " cortes)" : "") +
+        " · Cobertura A-P: " + Math.round(apMm) + " mm · Direção: " + dirTxt + ". ";
       var okMsg;
       if (!(tableDriveApi && topoRef)) okMsg = "Posição válida — Iniciar libera a aquisição.";
       else if (isMoving) okMsg = "Movendo a mesa para o início da faixa…";
@@ -2424,7 +2467,7 @@
       if (tableDriveApi && tableDriveApi.isBusy && tableDriveApi.isBusy()) tableDriveApi.stop();
     }
     function toIdle() {
-      phase = "idle"; loaded = false; lastSlice = 0; lastAcq = null;
+      phase = "idle"; loaded = false; lastSlice = 0; lastAcq = null; acqWin = null;
       if (ctrl) ctrl.classList.remove("is-acquiring");
       announcePhase("idle");
       topoRef = null; atStart = false; isMoving = false;
@@ -2560,7 +2603,9 @@
       var rows = [];
       if (pac) rows.push("<strong>Paciente:</strong> " + pac.nome + " · " + (pac.prontuario ? "Pront. " + pac.prontuario : "s/ prontuário") + (pac.regiao ? " · " + pac.regiao : ""));
       rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · direção " + (pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)"));
-      rows.push("<strong>Faixa varrida:</strong> " + Math.round(scanLen) + " mm · <strong>FOV A-P:</strong> " + Math.max(0, boxState.bottom - boxState.top).toFixed(0) + "% da imagem");
+      var apMm = Math.max(0, (boxState.bottom - boxState.top) / 100 * TOPO_AP_MM);
+      var nCortes = (lastAcq && lastAcq.cortes) ? lastAcq.cortes : (manifest ? manifest.cortes : 0);
+      rows.push("<strong>Faixa varrida:</strong> " + Math.round(scanLen) + " mm (" + nCortes + " cortes) · <strong>Cobertura A-P:</strong> " + Math.round(apMm) + " mm");
       rows.push("<strong>Mesa:</strong> " + Math.round(speed) + " mm/s (pitch " + pp.pitch + " × colimação " + pp.colim.toFixed(1) + " mm ÷ rotação " + ROT_S.toFixed(1) + " s)");
       if (!isNaN(tScan)) {
         var apneia = tScan > 20
@@ -2651,18 +2696,25 @@
       if (stopBtn) stopBtn.disabled = false;
       var total = manifest.cortes;
       var pp = protocolParams();
+      // FAIXA (range) planejada → janela de cortes adquirida (sub-volume).
+      var win = sliceWindow(total);
+      acqWin = win;
       // Comprimento da varredura = faixa CC planejada no topograma (mm)
       var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
       var speed = Math.max(10, Math.min(120, (pp.pitch * pp.colim) / ROT_S)); // mm/s
       var tScan = speed > 0 ? scanLen / speed : 0; // s (faixa ÷ velocidade)
-      lastAcq = { scanLen: scanLen, speed: speed, pp: pp };
+      lastAcq = { scanLen: scanLen, speed: speed, pp: pp, cortes: win.count };
+      // Slider passa a navegar SÓ a janela adquirida (a série é o sub-volume).
+      slider.min = win.lo; slider.max = win.hi;
       function paintProg(k) {
-        var idx = Math.round(k * (total - 1));
-        var n = (pp.direcao === "craniocaudal") ? (total - 1 - idx) : idx;
+        var span = win.hi - win.lo;
+        var off = Math.round(k * span); // 0..span, dentro da faixa
+        // Ordem: caudo-cranial varre base→vértice (n sobe); crânio-caudal inverte.
+        var n = (pp.direcao === "craniocaudal") ? (win.hi - off) : (win.lo + off);
         lastSlice = n;
         img.src = srcFor(n);
         slider.value = n;
-        counter.textContent = "ADQUIRINDO — corte " + (idx + 1) + " / " + total +
+        counter.textContent = "ADQUIRINDO — corte " + (off + 1) + " / " + win.count +
           " · mesa a " + Math.round(speed) + " mm/s · " + tScan.toFixed(1) + " s";
       }
       if (ctrl) ctrl.classList.add("is-acquiring");
@@ -2716,7 +2768,7 @@
       startBtn.disabled = true; startBtn.textContent = "Exame adquirido";
       if (stopBtn) stopBtn.disabled = false;
       show(lastSlice);
-      showMessage("Aquisição concluída (" + manifest.cortes + " cortes). Navegue e finalize com Stop.", "success");
+      showMessage("Aquisição concluída (" + (acqWin ? acqWin.count : manifest.cortes) + " cortes). Navegue e finalize com Stop.", "success");
     }
 
     slider.addEventListener("input", function () { if (loaded) show(parseInt(slider.value, 10) || 0); });
