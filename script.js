@@ -72,6 +72,106 @@
   }
 
   // =================================================================
+  // 2b) DIÁLOGOS NÃO-BLOQUEANTES (confirmar / perguntar)
+  // Substituem window.confirm/window.prompt, que travam a página e são
+  // suprimidos por alguns navegadores em PWA/celular — o que fazia a
+  // mesma pergunta reaparecer várias vezes. Aqui há um único modal por
+  // vez (trava de reentrância): enquanto um diálogo está aberto, novas
+  // chamadas são ignoradas, então nada é perguntado em duplicidade.
+  // =================================================================
+  var uiDialogOpen = false;
+
+  function buildDialog() {
+    var overlay = document.getElementById("ui-dialog");
+    if (overlay) return overlay;
+    overlay = document.createElement("div");
+    overlay.id = "ui-dialog";
+    overlay.className = "ui-dialog";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.hidden = true;
+    overlay.innerHTML =
+      '<div class="ui-dialog__box">' +
+      '<p class="ui-dialog__msg" id="ui-dialog-msg"></p>' +
+      '<input class="ui-dialog__input" id="ui-dialog-input" type="text" hidden>' +
+      '<div class="ui-dialog__actions">' +
+      '<button type="button" class="ui-dialog__btn ui-dialog__btn--ghost" id="ui-dialog-cancel">Cancelar</button>' +
+      '<button type="button" class="ui-dialog__btn ui-dialog__btn--primary" id="ui-dialog-ok">OK</button>' +
+      '</div></div>';
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  // opts: { prompt: bool, defaultValue: string, okText, cancelText }
+  // Resolve com boolean (confirmar) ou string/null (perguntar).
+  function openDialog(message, opts) {
+    opts = opts || {};
+    // Trava de reentrância: um diálogo por vez. Se já há um aberto,
+    // a nova chamada é descartada em vez de empilhar perguntas.
+    if (uiDialogOpen) return Promise.resolve(opts.prompt ? null : false);
+
+    var overlay = buildDialog();
+    if (!overlay) {
+      // Fallback defensivo (DOM indisponível): sem diálogo, cancela.
+      return Promise.resolve(opts.prompt ? null : false);
+    }
+
+    var msgEl = overlay.querySelector("#ui-dialog-msg");
+    var inputEl = overlay.querySelector("#ui-dialog-input");
+    var okBtn = overlay.querySelector("#ui-dialog-ok");
+    var cancelBtn = overlay.querySelector("#ui-dialog-cancel");
+
+    msgEl.textContent = message;
+    okBtn.textContent = opts.okText || (opts.prompt ? "Criar" : "Confirmar");
+    cancelBtn.textContent = opts.cancelText || "Cancelar";
+    inputEl.hidden = !opts.prompt;
+    if (opts.prompt) { inputEl.value = opts.defaultValue || ""; }
+
+    uiDialogOpen = true;
+    overlay.hidden = false;
+
+    return new Promise(function (resolve) {
+      function cleanup() {
+        okBtn.removeEventListener("click", onOk);
+        cancelBtn.removeEventListener("click", onCancel);
+        overlay.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKey);
+        overlay.hidden = true;
+        uiDialogOpen = false;
+      }
+      function onOk() {
+        var val = opts.prompt ? inputEl.value : true;
+        cleanup(); resolve(val);
+      }
+      function onCancel() { cleanup(); resolve(opts.prompt ? null : false); }
+      function onBackdrop(e) { if (e.target === overlay) onCancel(); }
+      function onKey(e) {
+        if (e.key === "Escape") { onCancel(); }
+        else if (e.key === "Enter" && (!opts.prompt || document.activeElement === inputEl)) { onOk(); }
+      }
+      okBtn.addEventListener("click", onOk);
+      cancelBtn.addEventListener("click", onCancel);
+      overlay.addEventListener("click", onBackdrop);
+      document.addEventListener("keydown", onKey);
+      if (opts.prompt) { inputEl.focus(); inputEl.select(); }
+      else { okBtn.focus(); }
+    });
+  }
+
+  function uiConfirm(message, opts) {
+    opts = opts || {};
+    opts.prompt = false;
+    return openDialog(message, opts);
+  }
+
+  function uiPrompt(message, defaultValue, opts) {
+    opts = opts || {};
+    opts.prompt = true;
+    opts.defaultValue = defaultValue || "";
+    return openDialog(message, opts);
+  }
+
+  // =================================================================
   // 3-6) CENA 3D E LÓGICA DO SIMULADOR
   // =================================================================
   function bootstrap() {
@@ -1855,10 +1955,12 @@
         var del = document.createElement("button");
         del.type = "button"; del.className = "pac-list__del"; del.setAttribute("aria-label", "Excluir paciente"); del.textContent = "✕";
         del.addEventListener("click", function () {
-          if (!window.confirm("Excluir o paciente \"" + p.nome + "\"?")) return;
-          persistDel(p.id).then(function () {
-            pacientes = pacientes.filter(function (x) { return x.id !== p.id; });
-            renderList(); renderExamList();
+          uiConfirm("Excluir o paciente \"" + p.nome + "\"?").then(function (ok) {
+            if (!ok) return;
+            persistDel(p.id).then(function () {
+              pacientes = pacientes.filter(function (x) { return x.id !== p.id; });
+              renderList(); renderExamList();
+            });
           });
         });
         li.appendChild(info); li.appendChild(del);
@@ -2091,11 +2193,12 @@
     });
     if (btnNew) btnNew.addEventListener("click", function () {
       if (!currentRegion) { showMessage("Selecione uma região no modelo primeiro.", "warning"); return; }
-      var nome = window.prompt("Nome do novo protocolo (" + currentRegion + "):", "");
-      if (nome === null) return; nome = nome.trim(); if (!nome) return;
-      var novo = blank("p_" + Date.now(), nome, currentRegion);
-      protocols.push(novo);
-      persist(novo).then(function () { selectProtocol(novo.id); openEditor(); });
+      uiPrompt("Nome do novo protocolo (" + currentRegion + "):", "").then(function (nome) {
+        if (nome === null) return; nome = nome.trim(); if (!nome) return;
+        var novo = blank("p_" + Date.now(), nome, currentRegion);
+        protocols.push(novo);
+        persist(novo).then(function () { selectProtocol(novo.id); openEditor(); });
+      });
     });
 
     for (var z = 0; z < zones.length; z++) {

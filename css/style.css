@@ -1230,3 +1230,79 @@ body.is-mobile.mob-aq #pane-acq .ws-viewer--full { min-height: 0; }
   animation: acq-pulse 1s ease-in-out infinite;
 }
 @keyframes acq-pulse { 50% { opacity: 0.55; } }
+
+/* ---------------------------------------------------------------------
+   DIÁLOGO NÃO-BLOQUEANTE (uiConfirm / uiPrompt)
+   Substitui window.confirm/prompt para não travar a página nem repetir
+   a mesma pergunta em PWA/celular. Um único modal por vez.
+--------------------------------------------------------------------- */
+.ui-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+.ui-dialog[hidden] { display: none; }
+.ui-dialog__box {
+  width: 100%;
+  max-width: 360px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+  padding: 20px;
+}
+.ui-dialog__msg {
+  margin: 0 0 16px;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.ui-dialog__input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+.ui-dialog__input[hidden] { display: none; }
+.ui-dialog__input:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+}
+.ui-dialog__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.ui-dialog__btn {
+  padding: 9px 16px;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.ui-dialog__btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.ui-dialog__btn--ghost:hover { color: var(--text-primary); }
+.ui-dialog__btn--primary {
+  background: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  color: #04121a;
+}
+.ui-dialog__btn--primary:hover { filter: brightness(1.08); }
