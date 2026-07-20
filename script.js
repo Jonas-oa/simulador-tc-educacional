@@ -1951,6 +1951,42 @@
       };
     }
     function cranioObs() { return "Valores didáticos de referência (AAPM/DRL). Ajuste conforme o serviço."; }
+
+    // ---- FASES (séries) do protocolo — sequência multifase (Etapa 2) ----
+    // Cada fase: { nome, tipo: "volume" | "pausa", delayS }. "pausa" é um
+    // intervalo didático (injeção/tempo de contraste). Protocolos sem o
+    // campo "fases" rodam como fase única de volume (compatível com o fluxo
+    // anterior). Seeds realistas para regiões que usam contraste multifásico.
+    var PHASE_SEEDS = {
+      cranio: [{ nome: "Volume — crânio", tipo: "volume" }],
+      abd_total: [
+        { nome: "Sem contraste", tipo: "volume" },
+        { nome: "Injeção de contraste EV", tipo: "pausa", delayS: 30 },
+        { nome: "Fase arterial", tipo: "volume" },
+        { nome: "Aguardar fase portal", tipo: "pausa", delayS: 40 },
+        { nome: "Fase venosa / portal", tipo: "volume" }
+      ],
+      abd_sup: [
+        { nome: "Sem contraste", tipo: "volume" },
+        { nome: "Injeção de contraste EV", tipo: "pausa", delayS: 30 },
+        { nome: "Fase arterial", tipo: "volume" },
+        { nome: "Aguardar fase portal", tipo: "pausa", delayS: 40 },
+        { nome: "Fase venosa / portal", tipo: "volume" }
+      ],
+      torax: [
+        { nome: "Sem contraste", tipo: "volume" },
+        { nome: "Injeção de contraste EV", tipo: "pausa", delayS: 25 },
+        { nome: "Fase contrastada", tipo: "volume" }
+      ]
+    };
+    function applyPhaseSeeds() {
+      protocols.forEach(function (p) {
+        if (PHASE_SEEDS[p.id] && !p.fases) {
+          p.fases = PHASE_SEEDS[p.id].map(function (f) { return { nome: f.nome, tipo: f.tipo, delayS: f.delayS || 0 }; });
+          persist(p);
+        }
+      });
+    }
     function isClinicallyBlank(p) {
       return !(p.kv || p.mas || p.pitch || p.colimacao || p.espessura || p.kernel || p.fov || p.dose);
     }
@@ -1997,6 +2033,7 @@
         }
       });
       applyCranioDefaultsIfBlank();
+      applyPhaseSeeds();
     }
     function cranioSeed() {
       var p = blank("cranio", "Crânio", "Crânio");
@@ -3295,37 +3332,69 @@
     var seqEl = document.getElementById("acq-seq");
     var paramsEl = document.getElementById("acq-params");
 
-    // Passos do fluxo atual e a fase em que cada um fica ativo.
-    var STEPS = [
-      { name: "Topograma", sub: "scout lateral", active: ["topoAcq"] },
-      { name: "Planejamento da faixa", sub: "linhas FOV / CC", active: ["plan", "moving"] },
-      { name: "Volume — aquisição", sub: "helicoidal", active: ["volAcq"] },
-      { name: "Revisão / Relatório", sub: "cortes + dose", active: ["review"] }
-    ];
-    var ORDER = ["idle", "topoAcq", "plan", "moving", "volAcq", "review"];
-
-    function stepState(step, phase) {
-      if (step.active.indexOf(phase) >= 0) return "active";
-      // "concluído" se a fase atual está adiante da última fase ativa do passo.
-      var pi = ORDER.indexOf(phase);
-      var maxActive = Math.max.apply(null, step.active.map(function (a) { return ORDER.indexOf(a); }));
-      return pi > maxActive ? "done" : "pending";
+    // Fases (séries) do protocolo em exame — ou fase única de volume, se o
+    // protocolo não define "fases" (compatível com o fluxo anterior).
+    function getPhases() {
+      var p = (examProtocol && examProtocol.data) || null;
+      var f = (p && p.fases && p.fases.length) ? p.fases : null;
+      if (f) return f.map(function (x) {
+        return { nome: x.nome || "Série", tipo: x.tipo === "pausa" ? "pausa" : "volume", delayS: x.delayS || 0 };
+      });
+      return [{ nome: "Volume", tipo: "volume", delayS: 0 }];
+    }
+    function stageOf(phase) {
+      if (phase === "topoAcq") return "topo";
+      if (phase === "plan" || phase === "moving") return "plan";
+      if (phase === "volAcq") return "volume";
+      if (phase === "review") return "review";
+      return "idle";
     }
 
-    function renderSeq(phase) {
+    // Passos: Topograma → Planejamento → <fases do protocolo> → Revisão.
+    // O passo ativo vem do estágio da fase (ct:phase) e, no volume, do
+    // índice da fase em execução (ct:seq — emitido pelo motor na Etapa 2b).
+    function renderSeq() {
       if (!seqEl) return;
-      phase = ORDER.indexOf(phase) >= 0 ? phase : "idle";
+      var phases = getPhases();
+      var steps = [
+        { name: "Topograma", sub: "scout lateral", tipo: "fixo" },
+        { name: "Planejamento da faixa", sub: "linhas FOV / CC", tipo: "fixo" }
+      ];
+      phases.forEach(function (f) {
+        steps.push({
+          name: f.nome,
+          sub: f.tipo === "pausa" ? ("pausa · " + (f.delayS || 0) + " s") : "volume helicoidal",
+          tipo: f.tipo
+        });
+      });
+      steps.push({ name: "Revisão / Relatório", sub: "cortes + dose", tipo: "fixo" });
+
+      var firstPhaseIdx = 2;
+      var reviewIdx = steps.length - 1;
+      var stage = stageOf(curPhase);
+      var active = -1;
+      if (stage === "topo") active = 0;
+      else if (stage === "plan") active = 1;
+      else if (stage === "volume") active = firstPhaseIdx + Math.max(0, Math.min(phases.length - 1, curSeqIndex));
+      else if (stage === "review") active = reviewIdx;
+
       var html = "";
-      STEPS.forEach(function (s, i) {
-        var st = stepState(s, phase);
-        var label = st === "active" ? "em curso" : (st === "done" ? "concluído" : "aguardando");
-        html += '<li class="acq-step is-' + st + '">' +
-          '<span class="acq-step__num">' + (st === "done" ? "✓" : (i + 1)) + '</span>' +
+      steps.forEach(function (s, i) {
+        var st = active < 0 ? "pending" : (i === active ? "active" : (i < active ? "done" : "pending"));
+        var label = st === "active"
+          ? (s.tipo === "pausa" ? "aguardando contraste" : "em curso")
+          : (st === "done" ? "concluído" : "aguardando");
+        var num = st === "done" ? "✓" : (s.tipo === "pausa" ? "⏱" : (i + 1));
+        html += '<li class="acq-step is-' + st + (s.tipo === "pausa" ? " acq-step--pausa" : "") + '">' +
+          '<span class="acq-step__num">' + num + '</span>' +
           '<span class="acq-step__body"><span class="acq-step__name">' + s.name + '</span>' +
           '<span class="acq-step__sub">' + s.sub + '</span></span>' +
           '<span class="acq-step__state">' + label + '</span></li>';
       });
       seqEl.innerHTML = html;
+      // Mantém o passo ativo visível quando a lista é longa (multifase).
+      var act = seqEl.querySelector(".acq-step.is-active");
+      if (act && act.scrollIntoView) { try { act.scrollIntoView({ block: "nearest" }); } catch (e) { /* ok */ } }
     }
 
     function dirTxt(d) {
@@ -3354,16 +3423,24 @@
     }
 
     var curPhase = "idle";
+    var curSeqIndex = 0; // fase de volume em execução (motor — Etapa 2b)
     document.addEventListener("ct:phase", function (e) {
       var p = e.detail && e.detail.phase;
       if (!p) return;
+      if (p === "volAcq" && curPhase !== "volAcq") curSeqIndex = 0; // reinicia ao entrar no volume
       curPhase = p;
-      renderSeq(p);
+      renderSeq();
       renderParams();
     });
-    // O protocolo em exame pode mudar sem evento — atualização leve periódica.
-    setInterval(renderParams, 1200);
-    renderSeq("idle");
+    // Motor multifase (Etapa 2b): informa qual fase de volume está em curso.
+    document.addEventListener("ct:seq", function (e) {
+      var i = e.detail && e.detail.index;
+      if (typeof i === "number") { curSeqIndex = i; renderSeq(); }
+    });
+    // O protocolo em exame pode mudar sem evento — atualização leve periódica
+    // (reflete troca de protocolo nas fases e nos parâmetros).
+    setInterval(function () { renderSeq(); renderParams(); }, 1200);
+    renderSeq();
     renderParams();
   }
 

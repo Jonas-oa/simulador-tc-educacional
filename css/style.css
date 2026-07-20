@@ -1337,3 +1337,8 @@ body.is-mobile.mob-aq .acq4 #ws-slice-viewer { flex-direction: row; align-items:
   body.is-mobile.mob-aq .acq4 .acq-adj { grid-template-columns: 1fr 1fr; }
   body.is-mobile.mob-aq .acq4 .acq-seq { overflow-y: auto; }
 }
+
+/* Passo de PAUSA (injeção/tempo de contraste) na sequência multifase. */
+.acq-step--pausa { border-style: dashed; }
+.acq-step--pausa .acq-step__num { background: transparent; border: 1px solid var(--border-strong); color: var(--text-secondary); }
+.acq-step--pausa.is-active .acq-step__num { border-color: var(--accent-cyan); color: var(--accent-cyan); background: transparent; }
