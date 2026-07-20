@@ -1230,3 +1230,110 @@ body.is-mobile.mob-aq #pane-acq .ws-viewer--full { min-height: 0; }
   animation: acq-pulse 1s ease-in-out infinite;
 }
 @keyframes acq-pulse { 50% { opacity: 0.55; } }
+
+/* =====================================================================
+   AQUISIÇÃO — LAYOUT DE 4 QUADRANTES (referência: console Siemens)
+   sup.esq Topograma · sup.dir Volumes · inf.esq Sequência dos protocolos
+   · inf.dir Ajuste do protocolo + Sala 3D. O corpo de #pane-acq vira uma
+   grade 2×2. Estrutura reaproveita os elementos existentes (mesmos IDs);
+   a lógica de aquisição não muda. Etapa 1 (layout).
+   ===================================================================== */
+.acq4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas: "topo vol" "seq adj";
+  gap: 2px;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  background: var(--border-subtle);
+  overflow: hidden;
+}
+.acq-quad--topo { grid-area: topo; }
+.acq-quad--vol  { grid-area: vol; }
+.acq-quad--seq  { grid-area: seq; }
+.acq-quad--adj  { grid-area: adj; }
+
+.acq-quad {
+  display: flex; flex-direction: column;
+  min-width: 0; min-height: 0;
+  background: var(--bg-void); overflow: hidden;
+}
+.acq-quad__head {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+  height: 26px; padding: 0 10px;
+  background: var(--bg-panel); border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-secondary);
+}
+.acq-quad__tag { margin-left: auto; font-weight: 600; letter-spacing: 0; color: var(--accent-cyan); text-transform: none; }
+.acq-quad__body { flex: 1; position: relative; min-height: 0; min-width: 0; }
+
+/* Q1 · Topograma */
+.acq-quad--topo .acq-quad__body { display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; }
+.acq-quad--topo .ws-topo { position: relative; margin: 0; max-width: 100%; max-height: 100%; }
+.acq-quad__ph { color: var(--text-muted); font-size: 0.78rem; }
+#acq-topo-body > .ws-topo:not([hidden]) ~ .acq-quad__ph { display: none; }
+.acq-quad--topo .ws-topo-readout { position: absolute; left: 8px; bottom: 8px; margin: 0; z-index: 3; }
+
+/* Q2 · Volumes: o viewer de cortes preenche o quadrante */
+.acq-quad--vol .acq-quad__body { background: #000; }
+.acq-quad--vol #ws-slice-viewer { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; border: 0; }
+
+/* Q3 · Sequência dos protocolos */
+.acq-seq-wrap { display: flex; flex-direction: column; padding: 8px; gap: 8px; overflow: hidden; }
+.acq-seq { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+.acq-step { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-panel); }
+.acq-step.is-active { border-color: var(--accent-cyan); background: var(--bg-panel-raised); }
+.acq-step.is-done { opacity: 0.62; }
+.acq-step__num { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 0.66rem; background: var(--bg-panel-raised); color: var(--text-secondary); }
+.acq-step.is-active .acq-step__num { background: var(--accent-cyan); color: #00131c; }
+.acq-step.is-done .acq-step__num { background: var(--accent-cyan-dim); color: #eafaff; }
+.acq-step__body { flex: 1; display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.acq-step__name { font-size: 0.8rem; color: var(--text-primary); }
+.acq-step__sub { font-size: 0.62rem; color: var(--text-muted); }
+.acq-step__state { flex: 0 0 auto; font-size: 0.6rem; color: var(--text-muted); }
+.acq-step.is-active .acq-step__state { color: var(--accent-cyan); }
+.acq-seq__foot { flex: 0 0 auto; margin: 0; }
+.acq-seq-wrap .ws-note { flex: 0 0 auto; margin: 0; font-size: 0.62rem; }
+
+/* Q4 · Ajuste do protocolo + Sala 3D */
+.acq-adj { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 2px; background: var(--border-subtle); }
+.acq-adj__params, .acq-adj__3d { background: var(--bg-void); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+.acq-adj__subhead { flex: 0 0 auto; height: 18px; padding: 0 8px; display: flex; align-items: center; font-size: 0.55rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-subtle); }
+.acq-params { flex: 1; overflow-y: auto; padding: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; align-content: start; }
+.acq-param { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.acq-param--full { grid-column: 1 / -1; }
+.acq-param__k { font-size: 0.56rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.acq-param__v { font-size: 0.78rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acq-params__empty { color: var(--text-muted); font-size: 0.72rem; padding: 8px; grid-column: 1 / -1; }
+.acq-adj__3d { position: relative; }
+.acq-adj__3d .acq3d { position: absolute; left: 0; right: 0; top: 18px; bottom: 0; width: auto; height: auto; min-height: 0; border: 0; background: #0a1018; }
+.acq-adj__3d .acq3d__body { position: absolute; inset: 0; }
+.acq-adj__3d .acq3d__tag { position: absolute; top: 4px; left: 6px; z-index: 2; }
+
+/* --- MOBILE PAISAGEM: mantém a grade 2×2 (dashboard já recua faixa+banner) --- */
+/* (herda a grade base; só garantimos que o viewer preencha) */
+body.is-mobile.mob-aq .acq4 #ws-slice-viewer { flex-direction: row; align-items: stretch; }
+
+/* --- MOBILE RETRATO: empilha os 4 quadrantes e rola --- */
+@media (orientation: portrait) {
+  body.is-mobile.mob-aq .acq4 {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas: "topo" "vol" "seq" "adj";
+    grid-auto-rows: auto;
+    height: auto; min-height: 100%;
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  /* Alturas explícitas por quadrante (os filhos são absolutos ou flex e
+     o grid-auto-rows:auto não mede itens flex-column aninhados de forma
+     confiável — colapsava a Sequência). */
+  body.is-mobile.mob-aq .acq4 .acq-quad--topo,
+  body.is-mobile.mob-aq .acq4 .acq-quad--vol { height: 300px; }
+  body.is-mobile.mob-aq .acq4 .acq-quad--seq { height: 330px; overflow: visible; }
+  body.is-mobile.mob-aq .acq4 .acq-quad--adj { height: 220px; }
+  body.is-mobile.mob-aq .acq4 .acq-adj { grid-template-columns: 1fr 1fr; }
+  body.is-mobile.mob-aq .acq4 .acq-seq { overflow-y: auto; }
+}

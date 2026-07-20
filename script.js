@@ -2212,7 +2212,9 @@
       if (!topo || topo.hidden || !box) return;
       var natW = topoImg.naturalWidth || 814;
       var natH = topoImg.naturalHeight || 700;
-      var r = box.getBoundingClientRect();
+      // No layout de 4 quadrantes o topograma vive no próprio quadrante
+      // (não mais dentro do viewer de cortes) — medimos o container real.
+      var r = (topo.parentNode || box).getBoundingClientRect();
       var availW = Math.max(60, r.width - 24);
       var availH = Math.max(60, r.height - 24);
       var s = Math.min(availW / natW, availH / natH);
@@ -3223,11 +3225,12 @@
       // da aquisição), para o aluno acompanhar a mesa.
       var want = (onExamDesktop || onExamMobile) && !userHidden;
       if (!want) { toHome(); return; }
-      // Destino conforme a plataforma: faixa fixa no topo (celular) ou
-      // janela flutuante sobre o viewer (desktop).
-      if (mobile && acq3dBody) {
+      // Layout de 4 quadrantes: a Sala 3D vive no quadrante inferior direito
+      // (slot #acq3d-body), no desktop e no celular. O PiP flutuante fica
+      // como fallback caso o slot não exista.
+      if (acq3dBody) {
         if (vp.parentNode !== acq3dBody) acq3dBody.appendChild(vp);
-        acq3d.hidden = false;
+        if (acq3d) acq3d.hidden = false;
         pip.hidden = true;
       } else {
         if (vp.parentNode !== pipBody) pipBody.appendChild(vp);
@@ -3281,6 +3284,90 @@
   }
 
   // =================================================================
+  // AQUISIÇÃO — 4 QUADRANTES: painel "Sequência dos protocolos" (inferior
+  // esquerdo) e "Ajuste do protocolo" (inferior direito). Desacoplado do
+  // motor: a sequência acompanha as fases via evento ct:phase; os
+  // parâmetros são lidos do protocolo em exame. Etapa 1 (layout): a
+  // sequência reflete o fluxo real de HOJE (topograma → planejamento →
+  // volume → revisão). A sequência multifase real virá na Etapa 2.
+  // =================================================================
+  function initAcqQuadrants() {
+    var seqEl = document.getElementById("acq-seq");
+    var paramsEl = document.getElementById("acq-params");
+
+    // Passos do fluxo atual e a fase em que cada um fica ativo.
+    var STEPS = [
+      { name: "Topograma", sub: "scout lateral", active: ["topoAcq"] },
+      { name: "Planejamento da faixa", sub: "linhas FOV / CC", active: ["plan", "moving"] },
+      { name: "Volume — aquisição", sub: "helicoidal", active: ["volAcq"] },
+      { name: "Revisão / Relatório", sub: "cortes + dose", active: ["review"] }
+    ];
+    var ORDER = ["idle", "topoAcq", "plan", "moving", "volAcq", "review"];
+
+    function stepState(step, phase) {
+      if (step.active.indexOf(phase) >= 0) return "active";
+      // "concluído" se a fase atual está adiante da última fase ativa do passo.
+      var pi = ORDER.indexOf(phase);
+      var maxActive = Math.max.apply(null, step.active.map(function (a) { return ORDER.indexOf(a); }));
+      return pi > maxActive ? "done" : "pending";
+    }
+
+    function renderSeq(phase) {
+      if (!seqEl) return;
+      phase = ORDER.indexOf(phase) >= 0 ? phase : "idle";
+      var html = "";
+      STEPS.forEach(function (s, i) {
+        var st = stepState(s, phase);
+        var label = st === "active" ? "em curso" : (st === "done" ? "concluído" : "aguardando");
+        html += '<li class="acq-step is-' + st + '">' +
+          '<span class="acq-step__num">' + (st === "done" ? "✓" : (i + 1)) + '</span>' +
+          '<span class="acq-step__body"><span class="acq-step__name">' + s.name + '</span>' +
+          '<span class="acq-step__sub">' + s.sub + '</span></span>' +
+          '<span class="acq-step__state">' + label + '</span></li>';
+      });
+      seqEl.innerHTML = html;
+    }
+
+    function dirTxt(d) {
+      return d === "craniocaudal" ? "Crânio-caudal (mesa entra)" : "Caudo-cranial (mesa sai)";
+    }
+    function renderParams() {
+      if (!paramsEl) return;
+      var p = (examProtocol && examProtocol.data) || null;
+      var rows = [
+        ["kV", p && p.kv], ["mAs", p && p.mas], ["Pitch", p && p.pitch], ["FOV", p && p.fov],
+        ["Colimação", p && p.colimacao], ["Esp. corte", p && p.espessura],
+        ["Kernel", p && p.kernel], ["CTDIvol", p && p.dose]
+      ];
+      var html = "";
+      if (!p) {
+        html = '<p class="acq-params__empty">Nenhum protocolo selecionado.</p>';
+      } else {
+        rows.forEach(function (r) {
+          html += '<div class="acq-param"><span class="acq-param__k">' + r[0] + '</span>' +
+            '<span class="acq-param__v">' + (r[1] ? String(r[1]) : "—") + '</span></div>';
+        });
+        html += '<div class="acq-param acq-param--full"><span class="acq-param__k">Direção</span>' +
+          '<span class="acq-param__v">' + dirTxt(p.direcao) + '</span></div>';
+      }
+      paramsEl.innerHTML = html;
+    }
+
+    var curPhase = "idle";
+    document.addEventListener("ct:phase", function (e) {
+      var p = e.detail && e.detail.phase;
+      if (!p) return;
+      curPhase = p;
+      renderSeq(p);
+      renderParams();
+    });
+    // O protocolo em exame pode mudar sem evento — atualização leve periódica.
+    setInterval(renderParams, 1200);
+    renderSeq("idle");
+    renderParams();
+  }
+
+  // =================================================================
   // INICIALIZAÇÃO
   // =================================================================
   function main() {
@@ -3294,6 +3381,7 @@
     initMobilePanel();
     initConsoleMode();
     initAcqPip();
+    initAcqQuadrants();
   }
 
   if (document.readyState === "loading") {

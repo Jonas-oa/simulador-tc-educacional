@@ -161,52 +161,89 @@
     <div class="dash-col dash-col--right" id="dash-col-right">
     <section class="dash-pane dash-pane--acq" id="pane-acq" aria-label="Aquisição de exames">
       <header class="dash-pane__head"><h2 class="dash-pane__title">Aquisição de exames</h2></header>
-      <div class="dash-pane__body dash-pane__body--acq">
-        <div class="acq3d" id="acq3d" hidden><span class="acq3d__tag">Sala 3D — mesa em movimento</span><div class="acq3d__body" id="acq3d-body"></div></div>
-        <div class="ws-viewer ws-viewer--full" id="ws-slice-viewer" aria-label="Área de aquisição e visualização de imagens">
-          <img id="ws-slice-img" class="ws-viewer__img" alt="Corte axial de TC de crânio" hidden>
-          <div class="ws-topo" id="ws-topo" hidden>
-            <img id="ws-topo-img" class="ws-topo__img" alt="Topograma lateral de crânio">
-            <div class="ws-topo__box" id="ws-topo-box" aria-hidden="true">
-              <div class="ws-topo__rect" id="ws-topo-rect"></div>
-              <div class="ws-topo__line ws-topo__line--h ws-topo__line--fov" id="ws-topo-top" data-edge="top" title="FOV — limite anterior"></div>
-              <div class="ws-topo__line ws-topo__line--h ws-topo__line--fov" id="ws-topo-bottom" data-edge="bottom" title="FOV — limite posterior"></div>
-              <div class="ws-topo__line ws-topo__line--v ws-topo__line--range" id="ws-topo-left" data-edge="left" title="Limite da faixa — vértice"></div>
-              <div class="ws-topo__line ws-topo__line--v ws-topo__line--range" id="ws-topo-right" data-edge="right" title="Limite da faixa — base do crânio"></div>
+      <div class="dash-pane__body dash-pane__body--acq acq4" id="acq4">
+
+        <!-- Q1 · TOPOGRAMA (superior esquerdo) -->
+        <section class="acq-quad acq-quad--topo" aria-label="Topograma">
+          <header class="acq-quad__head">Topograma<span class="acq-quad__tag">scout · lateral</span></header>
+          <div class="acq-quad__body" id="acq-topo-body">
+            <div class="ws-topo" id="ws-topo" hidden>
+              <img id="ws-topo-img" class="ws-topo__img" alt="Topograma lateral de crânio">
+              <div class="ws-topo__box" id="ws-topo-box" aria-hidden="true">
+                <div class="ws-topo__rect" id="ws-topo-rect"></div>
+                <div class="ws-topo__line ws-topo__line--h ws-topo__line--fov" id="ws-topo-top" data-edge="top" title="FOV — limite anterior"></div>
+                <div class="ws-topo__line ws-topo__line--h ws-topo__line--fov" id="ws-topo-bottom" data-edge="bottom" title="FOV — limite posterior"></div>
+                <div class="ws-topo__line ws-topo__line--v ws-topo__line--range" id="ws-topo-left" data-edge="left" title="Limite da faixa — vértice"></div>
+                <div class="ws-topo__line ws-topo__line--v ws-topo__line--range" id="ws-topo-right" data-edge="right" title="Limite da faixa — base do crânio"></div>
+              </div>
             </div>
-          </div>
-          <span class="ws-viewer__placeholder" id="ws-viewer-placeholder">Exame não iniciado</span>
-
-          <div class="pip" id="pip-3d" hidden>
-            <div class="pip__bar" id="pip-bar"><span>Sala 3D — mesa em movimento</span><button class="pip__hide" id="pip-hide" type="button" title="Ocultar janela">—</button></div>
-            <div class="pip__body" id="pip-body"></div>
-          </div>
-
-          <div class="ws-report" id="ws-report" hidden>
-            <h3 class="ws-report__title">Relatório do exame — didático</h3>
-            <div class="ws-report__body" id="ws-report-body"></div>
-                        <div class="ws-actions"><button class="ws-btn ws-btn--primary" id="ws-report-close" type="button">Ver cortes</button></div>
-          </div>
-
-          <div class="ws-overlay ws-overlay--top" aria-label="Paciente em exame">
-            <ul class="ws-list ws-list--overlay" id="ws-patient-list"></ul>
-          </div>
-
-          <div class="ws-overlay ws-overlay--bottom">
+            <span class="acq-quad__ph" id="acq-topo-ph">Topograma não adquirido</span>
             <p class="ws-topo-readout" id="ws-topo-readout" hidden></p>
-            <div class="ws-viewer-ctrl" id="ws-viewer-ctrl" hidden>
-              <input type="range" id="ws-slice-slider" min="0" max="0" value="0" step="1" aria-label="Navegar cortes">
-              <span class="ws-slice-counter" id="ws-slice-counter">—</span>
+          </div>
+        </section>
+
+        <!-- Q2 · VOLUMES ADQUIRIDOS (superior direito) -->
+        <section class="acq-quad acq-quad--vol" aria-label="Volumes adquiridos">
+          <header class="acq-quad__head">Volumes adquiridos<span class="acq-quad__tag" id="acq-vol-tag">axial</span></header>
+          <div class="acq-quad__body">
+            <div class="ws-viewer ws-viewer--full" id="ws-slice-viewer" aria-label="Área de visualização de imagens">
+              <img id="ws-slice-img" class="ws-viewer__img" alt="Corte axial de TC de crânio" hidden>
+              <span class="ws-viewer__placeholder" id="ws-viewer-placeholder">Exame não iniciado</span>
+
+              <div class="ws-report" id="ws-report" hidden>
+                <h3 class="ws-report__title">Relatório do exame — didático</h3>
+                <div class="ws-report__body" id="ws-report-body"></div>
+                <div class="ws-actions"><button class="ws-btn ws-btn--primary" id="ws-report-close" type="button">Ver cortes</button></div>
+              </div>
+
+              <div class="ws-overlay ws-overlay--top" aria-label="Paciente em exame">
+                <ul class="ws-list ws-list--overlay" id="ws-patient-list"></ul>
+              </div>
+
+              <div class="ws-overlay ws-overlay--bottom">
+                <div class="ws-viewer-ctrl" id="ws-viewer-ctrl" hidden>
+                  <input type="range" id="ws-slice-slider" min="0" max="0" value="0" step="1" aria-label="Navegar cortes">
+                  <span class="ws-slice-counter" id="ws-slice-counter">—</span>
+                </div>
+              </div>
             </div>
-            <div class="ws-actions ws-actions--center">
+          </div>
+        </section>
+
+        <!-- Q3 · SEQUÊNCIA DOS PROTOCOLOS (inferior esquerdo) -->
+        <section class="acq-quad acq-quad--seq" aria-label="Sequência dos protocolos">
+          <header class="acq-quad__head">Sequência dos protocolos</header>
+          <div class="acq-quad__body acq-seq-wrap">
+            <ul class="acq-seq" id="acq-seq"></ul>
+            <div class="acq-seq__foot ws-actions ws-actions--center">
               <button class="ws-btn" id="ws-exam-move" type="button" hidden>Mover</button>
               <button class="ws-btn" id="ws-exam-report" type="button" hidden>Relatório</button>
               <button class="ws-btn ws-btn--primary" id="ws-exam-start" type="button">Iniciar</button>
               <button class="ws-btn ws-btn--danger" id="ws-exam-stop" type="button" disabled>Stop</button>
             </div>
-            <p class="ws-note ws-note--overlay" id="ws-viewer-caption">Ao iniciar: volume real anonimizado de TC de crânio, de licença livre. A janela é apenas de exibição — não constitui interpretação diagnóstica.</p>
+            <p class="ws-note" id="ws-viewer-caption">Volume real anonimizado de TC de crânio, licença livre. Janela apenas de exibição — não é interpretação diagnóstica.</p>
           </div>
-        </div>
+        </section>
+
+        <!-- Q4 · AJUSTE DO PROTOCOLO + SALA 3D (inferior direito) -->
+        <section class="acq-quad acq-quad--adj" aria-label="Ajuste do protocolo e sala 3D">
+          <header class="acq-quad__head">Ajuste do protocolo<span class="acq-quad__tag">· Sala 3D</span></header>
+          <div class="acq-quad__body acq-adj">
+            <div class="acq-adj__params">
+              <div class="acq-adj__subhead">Parâmetros</div>
+              <div class="acq-params" id="acq-params"></div>
+            </div>
+            <div class="acq-adj__3d">
+              <div class="acq-adj__subhead">Sala 3D</div>
+              <div class="acq3d" id="acq3d" hidden><span class="acq3d__tag">mesa em movimento</span><div class="acq3d__body" id="acq3d-body"></div></div>
+              <div class="pip" id="pip-3d" hidden>
+                <div class="pip__bar" id="pip-bar"><span>Sala 3D — mesa em movimento</span><button class="pip__hide" id="pip-hide" type="button" title="Ocultar janela">—</button></div>
+                <div class="pip__body" id="pip-body"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
       </div>
     </section>
 
