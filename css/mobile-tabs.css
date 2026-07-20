@@ -258,3 +258,130 @@ body.is-mobile.mob-3d #pane-sim .console .panel .panel__resize {
       transparent 56% 68%, rgba(255,255,255,0.7) 68% 78%,
       transparent 78%);
 }
+
+/* =====================================================================
+   ETAPA B — Modo celular em PAISAGEM (uso horizontal, estilo console)
+   Em retrato a altura sobra e a navegação fica confortável na base. Em
+   PAISAGEM a altura é o recurso escasso (≈375 px num celular): a barra
+   inferior chegava a consumir ~30% da tela e empurrava o conteúdo para
+   baixo do fold. Aqui a navegação sai da base e vira uma FAIXA LATERAL
+   esquerda vertical — como a lista de passos do console Siemens real —
+   liberando altura, e cada tela reflui para aproveitar a largura.
+   Tudo escopado a body.is-mobile + (orientation: landscape): não afeta
+   retrato nem desktop. Aditivo, CSS puro (sem tocar em 3D/física/JS).
+   ===================================================================== */
+/* Banner de contexto: oculto por padrão (retrato/desktop); só aparece
+   no modo celular em paisagem, via a regra dentro do @media abaixo. */
+.mobile-banner { display: none; }
+
+@media (orientation: landscape) {
+  body.is-mobile { --rail-w: 64px; --banner-h: 30px; }
+
+  /* --- Banner de contexto persistente no topo (estilo console Siemens) ---
+     Faixa fina à direita da faixa lateral: paciente · protocolo · mesa ·
+     status. Texto montado por updateInfo() (mesma fonte do banner do
+     console do desktop). O conteúdo é empurrado para baixo dela. */
+  body.is-mobile .mobile-banner {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    top: max(0px, env(safe-area-inset-top));
+    left: calc(var(--rail-w) + env(safe-area-inset-left));
+    right: env(safe-area-inset-right);
+    height: var(--banner-h);
+    z-index: 90;
+    padding: 0 12px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--text-secondary);
+    background: rgba(6, 12, 20, 0.9);
+    border-bottom: 1px solid var(--border-strong);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* --- Navegação: base horizontal → faixa lateral esquerda vertical --- */
+  body.is-mobile .mobile-switch {
+    top: max(6px, env(safe-area-inset-top));
+    bottom: max(6px, env(safe-area-inset-bottom));
+    left: max(6px, env(safe-area-inset-left));
+    right: auto;
+    width: calc(var(--rail-w) - 12px);
+    grid-template-columns: 1fr;
+    grid-auto-rows: 1fr;
+    align-content: stretch;
+    gap: 4px;
+    padding-top: 42px; /* reserva o topo da faixa para o botão Sair (✕) */
+    border-radius: 14px;
+  }
+  body.is-mobile .mobile-switch__btn {
+    min-height: 0;
+    padding: 4px 2px;
+    font-size: 0.55rem;
+    border-radius: 9px;
+  }
+  .mobile-switch__icon { font-size: 0.95rem; margin-bottom: 1px; }
+
+  /* O ✕ é filho da faixa (que tem backdrop-filter e vira bloco de
+     contenção do position:fixed): fica no topo, centralizado, sem
+     sobrepor os itens de navegação abaixo. */
+  body.is-mobile .mobile-switch__exit {
+    top: 6px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
+
+  /* --- Dashboard: sem barra na base; conteúdo recuado da faixa lateral
+     e empurrado para baixo do banner de contexto. --- */
+  body.is-mobile .dashboard {
+    padding-top: var(--banner-h);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: calc(var(--rail-w) + env(safe-area-inset-left));
+  }
+
+  /* Sala: o painel flutuante encosta na base (não há mais barra embaixo) */
+  body.is-mobile.mob-3d #pane-sim .console .panel {
+    bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  /* Cabeçalhos de painel mais enxutos para ganhar altura útil */
+  body.is-mobile.mob-aq .dash-pane__head,
+  body.is-mobile.mob-proto .dash-pane__head,
+  body.is-mobile.mob-pac .dash-pane__head {
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: 6px;
+  }
+
+  /* --- Paciente: formulário em 2 colunas para caber sem rolar --- */
+  body.is-mobile.mob-pac .pac-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    align-items: end;
+  }
+  body.is-mobile.mob-pac .pac-form .ws-field--full,
+  body.is-mobile.mob-pac .pac-form .ws-actions { grid-column: 1 / -1; }
+  /* a linha Sexo/Idade participa do grid como dois itens */
+  body.is-mobile.mob-pac .pac-form__row { display: contents; }
+  body.is-mobile.mob-pac .ws-input { min-height: 38px; }
+  body.is-mobile.mob-pac #pac-add { min-height: 40px; }
+
+  /* --- Protocolo: mapa do corpo à esquerda, lista à direita (usa a largura) --- */
+  body.is-mobile.mob-proto .proto2 {
+    grid-template-columns: minmax(116px, 32%) 1fr;
+    gap: 14px;
+    align-items: start;
+    justify-items: stretch;
+  }
+  body.is-mobile.mob-proto .proto2__model {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  body.is-mobile.mob-proto .bodymap { width: min(116px, 24vh); }
+  body.is-mobile.mob-proto .bodymap__chips { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+}
+

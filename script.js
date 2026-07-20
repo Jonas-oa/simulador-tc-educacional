@@ -3111,7 +3111,6 @@
       setDot("proto", !prot);
       setDot("sim", !!(pac && tableDriveApi && !onTable));
       setDot("acq", !!(pac && prot && (!tableDriveApi || onTable)));
-      if (!banner) return;
       var parts = [];
       parts.push(pac ? (pac.nome + " · " + (pac.prontuario || "s/ prontuário")) : "Sem paciente em exame");
       if (prot) parts.push("Prot.: " + prot.nome);
@@ -3119,7 +3118,12 @@
       var ds = document.getElementById("display-status");
       if (dt && dt.textContent) parts.push("Mesa " + dt.textContent.trim());
       if (ds && ds.textContent) parts.push(ds.textContent.trim());
-      banner.textContent = parts.join("  ·  ");
+      var text = parts.join("  ·  ");
+      // Banner do console (desktop) e banner de paisagem do celular
+      // compartilham a mesma informação de contexto.
+      if (banner) banner.textContent = text;
+      var mb = document.getElementById("mobile-banner");
+      if (mb) mb.textContent = text;
     }
 
     // Aplica classes/visibilidade SEM disparar resize (usada também no
@@ -3164,7 +3168,9 @@
     // liga/desliga o console (sem loop: applyClasses não dispara resize).
     window.addEventListener("resize", applyClasses);
 
-    setInterval(function () { if (!bar.hidden) updateInfo(); }, 1200);
+    setInterval(function () {
+      if (!bar.hidden || body.classList.contains("is-mobile")) updateInfo();
+    }, 1200);
 
     consoleUiApi = {
       isConsole: function () { return state.on && isDesktop(); },
