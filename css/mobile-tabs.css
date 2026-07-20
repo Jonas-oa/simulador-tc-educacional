@@ -270,8 +270,37 @@ body.is-mobile.mob-3d #pane-sim .console .panel .panel__resize {
    Tudo escopado a body.is-mobile + (orientation: landscape): não afeta
    retrato nem desktop. Aditivo, CSS puro (sem tocar em 3D/física/JS).
    ===================================================================== */
+/* Banner de contexto: oculto por padrão (retrato/desktop); só aparece
+   no modo celular em paisagem, via a regra dentro do @media abaixo. */
+.mobile-banner { display: none; }
+
 @media (orientation: landscape) {
-  body.is-mobile { --rail-w: 64px; }
+  body.is-mobile { --rail-w: 64px; --banner-h: 30px; }
+
+  /* --- Banner de contexto persistente no topo (estilo console Siemens) ---
+     Faixa fina à direita da faixa lateral: paciente · protocolo · mesa ·
+     status. Texto montado por updateInfo() (mesma fonte do banner do
+     console do desktop). O conteúdo é empurrado para baixo dela. */
+  body.is-mobile .mobile-banner {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    top: max(0px, env(safe-area-inset-top));
+    left: calc(var(--rail-w) + env(safe-area-inset-left));
+    right: env(safe-area-inset-right);
+    height: var(--banner-h);
+    z-index: 90;
+    padding: 0 12px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--text-secondary);
+    background: rgba(6, 12, 20, 0.9);
+    border-bottom: 1px solid var(--border-strong);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   /* --- Navegação: base horizontal → faixa lateral esquerda vertical --- */
   body.is-mobile .mobile-switch {
@@ -305,8 +334,10 @@ body.is-mobile.mob-3d #pane-sim .console .panel .panel__resize {
     transform: translateX(-50%);
   }
 
-  /* --- Dashboard: sem barra na base; conteúdo recuado da faixa lateral --- */
+  /* --- Dashboard: sem barra na base; conteúdo recuado da faixa lateral
+     e empurrado para baixo do banner de contexto. --- */
   body.is-mobile .dashboard {
+    padding-top: var(--banner-h);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: calc(var(--rail-w) + env(safe-area-inset-left));
   }
