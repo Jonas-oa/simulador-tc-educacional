@@ -2195,6 +2195,9 @@
     var phase = "idle";
     var topoAnim = null;   // requestAnimationFrame da varredura do topograma
     var volTimer = null;   // intervalo da aquisição corte a corte
+    var pauseTimer = null; // contagem regressiva das pausas (contraste)
+    var examPhases = [];   // fases do protocolo em exame (motor multifásico)
+    var phaseIdx = 0;      // índice da fase em execução
     var TOPO_MS = 4000;    // fallback (sem cena 3D): duração da varredura
     var VOL_MS = 6500;     // fallback (sem cena 3D): duração do volume
     // Física didática da aquisição (mesa REAL comanda a imagem):
@@ -2439,6 +2442,7 @@
     function stopAnimations() {
       if (topoAnim) { cancelAnimationFrame(topoAnim); topoAnim = null; }
       if (volTimer) { clearInterval(volTimer); volTimer = null; }
+      if (pauseTimer) { clearInterval(pauseTimer); pauseTimer = null; }
       soundStop();
       // Para a mesa se a aquisição estiver em curso. Os handlers onAbort
       // checam a fase — como ela já foi trocada, viram no-op (sem eco).
@@ -2645,6 +2649,24 @@
     // posição real da mesa, na ordem da direção programada no protocolo.
     // Premissa didática: axial_000 = corte mais INFERIOR (base) — a ordem
     // inverte no crânio-caudal. Validação clínica do usuário.
+    // Fases (séries) do protocolo em exame — ou fase única de volume, se o
+    // protocolo não define "fases" (compatível com o fluxo anterior).
+    function getExamPhases() {
+      var p = (examProtocol && examProtocol.data) || null;
+      var f = (p && p.fases && p.fases.length) ? p.fases : null;
+      if (f) return f.map(function (x) {
+        return { nome: x.nome || "Série", tipo: x.tipo === "pausa" ? "pausa" : "volume", delayS: x.delayS || 0 };
+      });
+      return [{ nome: "Volume", tipo: "volume", delayS: 0 }];
+    }
+    function emitSeq(i) {
+      try { document.dispatchEvent(new CustomEvent("ct:seq", { detail: { index: i } })); } catch (e) { /* ok */ }
+    }
+
+    // toVolAcq prepara a fase de volume e dispara o sequenciador de fases.
+    // Fase única (ex.: Crânio) => uma varredura e revisão, idêntico ao
+    // fluxo anterior. Multifásico => varre cada série, repondo a mesa e
+    // contando as pausas de contraste entre elas. Emite ct:seq por fase.
     function toVolAcq() {
       phase = "volAcq"; loaded = false;
       announcePhase("volAcq");
@@ -2657,22 +2679,34 @@
       if (reportBtn) reportBtn.hidden = true;
       if (reportEl) reportEl.hidden = true;
       if (stopBtn) stopBtn.disabled = false;
-      var total = manifest.cortes;
+      if (ctrl) ctrl.classList.add("is-acquiring");
       var pp = protocolParams();
       // Comprimento da varredura = faixa CC planejada no topograma (mm)
       var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
       var speed = Math.max(10, Math.min(120, (pp.pitch * pp.colim) / ROT_S)); // mm/s
       lastAcq = { scanLen: scanLen, speed: speed, pp: pp };
+      examPhases = getExamPhases();
+      phaseIdx = 0;
+      runPhase();
+    }
+
+    // Varredura helicoidal de UM volume, a partir da posição atual da mesa
+    // (assumida no início da faixa). Chama onDone/onAbort ao final.
+    function scanVolume(label, onDone, onAbort) {
+      var total = manifest.cortes;
+      var pp = lastAcq.pp, speed = lastAcq.speed, scanLen = lastAcq.scanLen;
+      var multi = examPhases.length > 1;
+      var tag = (multi && label) ? label : "ADQUIRINDO";
       function paintProg(k) {
         var idx = Math.round(k * (total - 1));
         var n = (pp.direcao === "craniocaudal") ? (total - 1 - idx) : idx;
         lastSlice = n;
         img.src = srcFor(n);
         slider.value = n;
-        counter.textContent = "ADQUIRINDO — corte " + (idx + 1) + " / " + total +
+        counter.textContent = tag + " — corte " + (idx + 1) + " / " + total +
           " · mesa a " + Math.round(speed) + " mm/s";
       }
-      if (ctrl) ctrl.classList.add("is-acquiring");
+      atStart = false; // a mesa vai se deslocar durante a varredura
       paintProg(0);
       soundStart("vol", ROT_S);
       if (tableDriveApi) {
@@ -2682,17 +2716,10 @@
           speedMmS: speed,
           rotTimeS: ROT_S, // liga o arco de varredura girando no bore
           onProgress: function (k) { paintProg(k); },
-          onDone: function () { soundStop(); toReview(); },
-          onAbort: function (motivo) {
-            if (phase !== "volAcq") return;
-            soundStop(); toPlan(true);
-            showMessage("Aquisição do volume abortada: " + motivo, "warning");
-          }
+          onDone: function () { soundStop(); onDone(); },
+          onAbort: function (motivo) { soundStop(); onAbort(motivo); }
         });
-        if (!res.ok) {
-          soundStop(); toPlan(true);
-          showMessage(res.motivo, "warning");
-        }
+        if (!res.ok) { soundStop(); onAbort(res.motivo); }
         return;
       }
       // Fallback (cena 3D indisponível): corte a corte por tempo.
@@ -2700,14 +2727,76 @@
       var stepMs = Math.max(30, Math.round(VOL_MS / total));
       volTimer = setInterval(function () {
         i++;
-        if (i >= total) {
-          clearInterval(volTimer); volTimer = null;
-          soundStop();
-          toReview();
-          return;
-        }
+        if (i >= total) { clearInterval(volTimer); volTimer = null; soundStop(); onDone(); return; }
         paintProg(i / (total - 1));
       }, stepMs);
+    }
+
+    // Garante a mesa no início da faixa planejada (repõe sem varrer, se
+    // preciso — como o retorno físico da mesa entre séries).
+    function ensureAtStart(onDone, onAbort) {
+      if (!tableDriveApi) { onDone(); return; }
+      var zs = volumeStartZ();
+      if (zs == null) { onDone(); return; }
+      var cur = tableDriveApi.getPos();
+      var distMm = Math.abs(zs - cur) * 1000;
+      if (atStart || distMm < 3) { atStart = true; onDone(); return; }
+      startBtn.textContent = "Reposicionando mesa…";
+      counter.textContent = "REPOSICIONANDO MESA…";
+      var res = tableDriveApi.start({
+        distanceMm: distMm,
+        direction: zs < cur ? "in" : "out",
+        speedMmS: 100, rotTimeS: 0, label: "REPOSICIONANDO",
+        onDone: function () { atStart = true; onDone(); },
+        onAbort: function (motivo) { onAbort(motivo); }
+      });
+      if (!res.ok) { onAbort(res.motivo); }
+    }
+
+    // Aborta a sequência multifásica (Stop / falha de curso), voltando ao
+    // planejamento. As trocas de fase barram callbacks tardios.
+    function abortSeq(motivo) {
+      if (pauseTimer) { clearInterval(pauseTimer); pauseTimer = null; }
+      soundStop();
+      if (phase === "volAcq") {
+        toPlan(true);
+        showMessage("Aquisição abortada: " + motivo, "warning");
+      }
+    }
+
+    // Pausa de contraste: repõe a mesa ao início e conta o tempo (delayS).
+    function runPause(f, done) {
+      ensureAtStart(function () {
+        if (phase !== "volAcq") return;
+        var remaining = Math.max(0, f.delayS | 0);
+        startBtn.textContent = "Pausa (contraste)…";
+        if (remaining <= 0) { done(); return; }
+        counter.textContent = f.nome + " — " + remaining + " s";
+        pauseTimer = setInterval(function () {
+          if (phase !== "volAcq") { clearInterval(pauseTimer); pauseTimer = null; return; }
+          remaining--;
+          if (remaining <= 0) { clearInterval(pauseTimer); pauseTimer = null; done(); return; }
+          counter.textContent = f.nome + " — " + remaining + " s";
+        }, 1000);
+      }, abortSeq);
+    }
+
+    // Sequenciador: executa a fase corrente e encadeia a próxima; ao final
+    // de todas as fases, vai para a revisão.
+    function runPhase() {
+      if (phase !== "volAcq") return; // abortado
+      if (phaseIdx >= examPhases.length) { toReview(); return; }
+      emitSeq(phaseIdx);
+      var f = examPhases[phaseIdx];
+      var next = function () { phaseIdx++; runPhase(); };
+      if (f.tipo === "pausa") {
+        runPause(f, next);
+      } else {
+        ensureAtStart(function () {
+          if (phase !== "volAcq") return;
+          scanVolume(f.nome, next, abortSeq);
+        }, abortSeq);
+      }
     }
 
     function toReview() {
