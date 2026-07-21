@@ -383,5 +383,53 @@ body.is-mobile.mob-3d #pane-sim .console .panel .panel__resize {
   }
   body.is-mobile.mob-proto .bodymap { width: min(116px, 24vh); }
   body.is-mobile.mob-proto .bodymap__chips { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+
+  /* =====================================================================
+     EXAME (mob-aq) em PAISAGEM — aproveitar a tela ao máximo
+     Em telas landscape de celular os 4 quadrantes ficavam espremidos, com
+     fontes grandes e o HUD flutuante do 3D sobrepondo a imagem. Aqui:
+     1) esconde o cabeçalho do painel (a aba lateral + o banner já dizem
+        onde estamos) para a grade 2×2 ganhar toda a altura;
+     2) reduz fontes/paddings dos quadrantes;
+     3) remove as informações suspensas sobre a Sala 3D (HUD e etiqueta).
+     Escopado a body.is-mobile.mob-aq + landscape: não afeta retrato,
+     desktop, nem as outras abas. Sem tocar em 3D/física/JS.
+     ===================================================================== */
+  body.is-mobile.mob-aq .dash-pane__head { display: none; }
+  body.is-mobile.mob-aq .acq4 { gap: 1px; }
+
+  /* Cabeçalhos e placeholders dos quadrantes mais enxutos */
+  body.is-mobile.mob-aq .acq-quad__head { height: 20px; padding: 0 8px; font-size: 0.52rem; }
+  body.is-mobile.mob-aq .acq-quad__ph { font-size: 0.64rem; }
+
+  /* Q3 · Sequência dos protocolos */
+  body.is-mobile.mob-aq .acq-seq-wrap { padding: 6px; gap: 5px; }
+  body.is-mobile.mob-aq .acq-step { padding: 4px 7px; gap: 6px; }
+  body.is-mobile.mob-aq .acq-step__num { width: 16px; height: 16px; font-size: 0.56rem; }
+  body.is-mobile.mob-aq .acq-step__name { font-size: 0.66rem; }
+  body.is-mobile.mob-aq .acq-step__sub,
+  body.is-mobile.mob-aq .acq-step__state { font-size: 0.52rem; }
+  body.is-mobile.mob-aq .acq-seq-wrap .ws-note { font-size: 0.52rem; }
+  body.is-mobile.mob-aq .acq-seq__foot .ws-btn { min-height: 0; padding: 6px 12px; font-size: 0.74rem; }
+
+  /* Q4 · Ajuste do protocolo */
+  body.is-mobile.mob-aq .acq-adj__subhead { height: 16px; font-size: 0.5rem; }
+  body.is-mobile.mob-aq .acq-params { padding: 6px; gap: 4px 8px; }
+  body.is-mobile.mob-aq .acq-param__k { font-size: 0.5rem; }
+  body.is-mobile.mob-aq .acq-param__v { font-size: 0.64rem; }
+  body.is-mobile.mob-aq .acq-params__empty { font-size: 0.62rem; padding: 6px; }
+
+  /* Q2 · Volumes: overlay do paciente/placeholder/controles compactos */
+  body.is-mobile.mob-aq .ws-viewer__placeholder { font-size: 0.68rem; }
+  body.is-mobile.mob-aq .ws-list--overlay .ws-list__name { font-size: 0.7rem; }
+  body.is-mobile.mob-aq .ws-list--overlay .ws-list__meta { font-size: 0.56rem; }
+  body.is-mobile.mob-aq .ws-slice-counter { font-size: 0.62rem; min-width: 0; }
+  body.is-mobile.mob-aq .ws-plane__btn { padding: 2px 9px; font-size: 0.62rem; }
+
+  /* Sala 3D (dentro do quadrante Ajuste): remove as informações suspensas
+     que sobrepõem a imagem — HUD (MESA/VELOC/ALTURA) e etiqueta de estado.
+     O banner do topo já traz posição/velocidade/status. */
+  body.is-mobile.mob-aq .acq-adj__3d .viewport__overlay,
+  body.is-mobile.mob-aq .acq-adj__3d .acq3d__tag { display: none !important; }
 }
 
