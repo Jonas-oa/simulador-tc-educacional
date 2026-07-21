@@ -10,8 +10,8 @@
   <meta name="theme-color" content="#0a0e14" />
   <link rel="icon" href="icons/icon-192.png" />
 
-  <link rel="stylesheet" href="css/style.css" />
-  <link rel="stylesheet" href="css/mobile-tabs.css" />
+  <link rel="stylesheet" href="css/style.css?v=20260721b" />
+  <link rel="stylesheet" href="css/mobile-tabs.css?v=20260721b" />
 </head>
 <body data-theme="dark">
 
@@ -195,11 +195,25 @@
                 <div class="ws-actions"><button class="ws-btn ws-btn--primary" id="ws-report-close" type="button">Ver cortes</button></div>
               </div>
 
+              <div class="ws-report ws-confirm" id="ws-confirm" hidden>
+                <h3 class="ws-report__title">Confirmar aquisição</h3>
+                <div class="ws-report__body" id="ws-confirm-body"></div>
+                <div class="ws-actions">
+                  <button class="ws-btn ws-btn--primary" id="ws-confirm-ok" type="button">Confirmar e adquirir</button>
+                  <button class="ws-btn ws-btn--ghost" id="ws-confirm-cancel" type="button">Cancelar</button>
+                </div>
+              </div>
+
               <div class="ws-overlay ws-overlay--top" aria-label="Paciente em exame">
                 <ul class="ws-list ws-list--overlay" id="ws-patient-list"></ul>
               </div>
 
               <div class="ws-overlay ws-overlay--bottom">
+                <div class="ws-plane" id="ws-plane" hidden role="group" aria-label="Plano de reformatação">
+                  <button type="button" class="ws-plane__btn is-active" data-plane="axial">Axial</button>
+                  <button type="button" class="ws-plane__btn" data-plane="coronal">Coronal</button>
+                  <button type="button" class="ws-plane__btn" data-plane="sagital">Sagital</button>
+                </div>
                 <div class="ws-viewer-ctrl" id="ws-viewer-ctrl" hidden>
                   <input type="range" id="ws-slice-slider" min="0" max="0" value="0" step="1" aria-label="Navegar cortes">
                   <span class="ws-slice-counter" id="ws-slice-counter">—</span>
@@ -290,6 +304,12 @@
                   <option value="caudocranial">Caudo-cranial (mesa sai do gantry)</option>
                   <option value="craniocaudal">Crânio-caudal (mesa entra no gantry)</option>
                 </select></label>
+                <label class="ws-field"><span class="ws-field__label">Modo de aquisição</span><select class="ws-input" id="ws-param-modo" disabled>
+                  <option value="sequencial">Axial sequencial (step-and-shoot)</option>
+                  <option value="helicoidal">Helicoidal (espiral)</option>
+                </select></label>
+                <label class="ws-field"><span class="ws-field__label">Tilt do gantry (°)</span><input class="ws-input" id="ws-param-tilt" type="number" min="-30" max="30" step="1" placeholder="0" disabled></label>
+                <label class="ws-field"><span class="ws-field__label">Tempo de rotação (s)</span><input class="ws-input" id="ws-param-rot" type="text" placeholder="1,0" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">Colimação</span><input class="ws-input" id="ws-param-colim" type="text" placeholder="—" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">Esp. corte</span><input class="ws-input" id="ws-param-thick" type="text" placeholder="—" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">Kernel</span><input class="ws-input" id="ws-param-kernel" type="text" placeholder="—" disabled></label>
@@ -352,7 +372,7 @@
   </script>
 
   <script src="js/vendor/three.min.js"></script>
-  <script src="script.js"></script>
-  <script src="js/mobile-tabs.js"></script>
+  <script src="script.js?v=20260721b"></script>
+  <script src="js/mobile-tabs.js?v=20260721b"></script>
 </body>
 </html>

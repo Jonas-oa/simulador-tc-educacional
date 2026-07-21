@@ -1532,6 +1532,23 @@
         spinArc.visible = spinRotTime > 0;
       }
 
+      // Angulação do gantry (tilt), como no crânio real. O gantryGroup tem
+      // filhos em coordenadas absolutas (isocentro em y=ISO_Y, z=-0.6);
+      // rotacionar direto giraria em torno da origem do mundo. Para manter o
+      // isocentro fixo, rotaciona em X e compensa a posição (T = P - R·P).
+      // Só o visual do gantry inclina — lasers, mesa, paciente e os
+      // intertravamentos (baseados em z do mundo) permanecem intactos.
+      var GANTRY_TILT_PIVOT = new THREE.Vector3(0, ISO_Y, -0.6);
+      function setGantryTilt(deg) {
+        var th = (deg || 0) * Math.PI / 180;
+        var P = GANTRY_TILT_PIVOT;
+        var cos = Math.cos(th), sin = Math.sin(th);
+        var ry = P.y * cos - P.z * sin;
+        var rz = P.y * sin + P.z * cos;
+        gantryGroup.rotation.x = th;
+        gantryGroup.position.set(0, P.y - ry, P.z - rz);
+      }
+
       function abortAutoDrive(motivo) {
         if (!autoDrive) return;
         var ad = autoDrive;
@@ -1583,7 +1600,12 @@
           patientPose.getWorldPosition(v);
           return (v.y - ISO_Y) * 100;
         },
-        stop: function () { abortAutoDrive("Aquisição interrompida pela workstation."); }
+        stop: function () { abortAutoDrive("Aquisição interrompida pela workstation."); },
+        // Inclina o gantry (graus) — visual do tilt de protocolo.
+        setGantryTilt: function (deg) { setGantryTilt(deg); },
+        // Liga/desliga o arco de varredura girando SEM mover a mesa (usado no
+        // step-and-shoot: aquisição com a mesa parada entre os passos).
+        setScan: function (rotTimeS) { setSpin(rotTimeS || 0); }
       };
 
       // -----------------------------------------------------------
@@ -1921,8 +1943,8 @@
     var zones = document.querySelectorAll("[data-region]");
     if (!listEl || !editor || !regionLabel) return;
 
-    var FIELDS = ["kv", "mas", "pitch", "direcao", "colim", "thick", "kernel", "fov", "dose"];
-    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", direcao: "direcao", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov", dose: "dose" };
+    var FIELDS = ["kv", "mas", "pitch", "direcao", "modo", "tilt", "rot", "colim", "thick", "kernel", "fov", "dose"];
+    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", direcao: "direcao", modo: "modo", tilt: "tilt", rot: "rotacao", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov", dose: "dose" };
     function inputEl(f) { return document.getElementById("ws-param-" + f); }
 
     var protocols = [];
@@ -1932,7 +1954,7 @@
     var memoryFallback = false;
 
     function blank(id, nome, regiao) {
-      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", direcao: "caudocranial", colimacao: "", espessura: "", kernel: "", fov: "", dose: "", obs: "" };
+      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", direcao: "caudocranial", modo: "helicoidal", tilt: "", rotacao: "", colimacao: "", espessura: "", kernel: "", fov: "", dose: "", obs: "" };
     }
 
     // Etapa D — valores DIDÁTICOS de referência (AAPM / DRLs) para TC de crânio.
@@ -1941,8 +1963,11 @@
       return {
         kv: "120",
         mas: "300",
-        pitch: "1,2",
+        pitch: "0,55",
         direcao: "caudocranial",
+        modo: "sequencial",
+        tilt: "0",
+        rotacao: "1,0",
         colimacao: "64 × 0,6 mm",
         espessura: "5,0 mm encéfalo / 1,25 mm osso",
         kernel: "Encéfalo (liso) + Osso (nítido)",
@@ -1988,6 +2013,21 @@
       { id: "memb_sup", nome: "Membro superior",  regiao: "Membros" },
       { id: "memb_inf", nome: "Membro inferior",  regiao: "Membros" }
     ];
+    // Migração: campos estruturados (modo/tilt/rotacao) adicionados depois.
+    // Garante-os em protocolos salvos por versões anteriores. O crânio ganha
+    // os padrões didáticos (sequencial, tilt 0, rotação 1,0); os demais,
+    // helicoidal por padrão. Só persiste quando de fato completou algo.
+    function ensureStructuredFields() {
+      protocols.forEach(function (p) {
+        var changed = false;
+        if (p.modo === undefined || p.modo === "") {
+          p.modo = (p.id === "cranio") ? "sequencial" : "helicoidal"; changed = true;
+        }
+        if (p.tilt === undefined) { p.tilt = (p.id === "cranio") ? "0" : ""; changed = true; }
+        if (p.rotacao === undefined) { p.rotacao = (p.id === "cranio") ? "1,0" : ""; changed = true; }
+        if (changed) persist(p);
+      });
+    }
     function ensureCatalog() {
       CATALOGO.forEach(function (c) {
         if (!byId(c.id)) {
@@ -1997,6 +2037,7 @@
         }
       });
       applyCranioDefaultsIfBlank();
+      ensureStructuredFields();
     }
     function cranioSeed() {
       var p = blank("cranio", "Crânio", "Crânio");
@@ -2020,6 +2061,8 @@
       FIELDS.forEach(function (f) { var el = inputEl(f); if (el) el.value = p ? (p[FIELD_KEYS[f]] || "") : ""; });
       var dirEl = inputEl("direcao");
       if (dirEl && !dirEl.value) dirEl.value = "caudocranial"; // protocolos antigos sem o campo
+      var modoEl = inputEl("modo");
+      if (modoEl && !modoEl.value) modoEl.value = "helicoidal"; // idem
     }
     function setMode(m) {
       mode = m;
@@ -2177,6 +2220,10 @@
     var MIN_GAP = 6; // % mínimo entre linhas opostas
     var lastSlice = 0; // último corte pintado na aquisição (p/ review)
     var lastAcq = null; // parâmetros da última aquisição (p/ relatório)
+    // MPR: plano de exibição atual e volume reconstruído da pilha axial.
+    var plane = "axial";
+    var vol = null; // { W, H, Z, slices:[Uint8Array], spX, spY, spZ }
+    var mprCache = {}; // dataURL por plano+índice (evita reconstruir a cada tick)
 
     // Anuncia a fase do exame (idle/topoAcq/plan/moving/volAcq/review)
     // para módulos desacoplados — ex.: o PiP da sala 3D no modo console.
@@ -2240,10 +2287,18 @@
       }
       var pitch = num(p.pitch);
       if (!(pitch > 0)) pitch = 1.0;
+      var rot = num(p.rotacao);
+      if (!(rot > 0)) rot = ROT_S;
+      var tilt = num(p.tilt);
+      if (isNaN(tilt)) tilt = 0;
+      tilt = Math.max(-30, Math.min(30, tilt));
       return {
         direcao: p.direcao === "craniocaudal" ? "craniocaudal" : "caudocranial",
+        modo: p.modo === "sequencial" ? "sequencial" : "helicoidal",
         pitch: pitch,
-        colim: colimMm(p.colimacao)
+        colim: colimMm(p.colimacao),
+        rotacaoS: rot,
+        tiltDeg: tilt
       };
     }
 
@@ -2323,6 +2378,11 @@
       topoBox.style.setProperty("--edge-bottom", boxState.bottom + "%");
       topoBox.style.setProperty("--edge-left", boxState.left + "%");
       topoBox.style.setProperty("--edge-right", boxState.right + "%");
+      // Tilt do gantry: os planos de corte aparecem angulados na scout
+      // lateral (as linhas de faixa giram pelo ângulo do protocolo).
+      var tilt = protocolParams().tiltDeg || 0;
+      topoBox.style.setProperty("--tilt", tilt + "deg");
+      topoBox.classList.toggle("has-tilt", Math.abs(tilt) > 0.5);
     }
     function inZone(v, z) { return v >= z[0] && v <= z[1]; }
     function problems() {
@@ -2406,12 +2466,16 @@
       // Para a mesa se a aquisição estiver em curso. Os handlers onAbort
       // checam a fase — como ela já foi trocada, viram no-op (sem eco).
       if (tableDriveApi && tableDriveApi.isBusy && tableDriveApi.isBusy()) tableDriveApi.stop();
+      // Desliga o arco de varredura (caso estivesse na aquisição estacionária
+      // do step-and-shoot, sem uma mesa em movimento para pará-lo).
+      if (tableDriveApi && tableDriveApi.setScan) tableDriveApi.setScan(0);
     }
     function toIdle() {
       phase = "idle"; loaded = false; lastSlice = 0; lastAcq = null;
       if (ctrl) ctrl.classList.remove("is-acquiring");
       announcePhase("idle");
       topoRef = null; atStart = false; isMoving = false;
+      if (tableDriveApi && tableDriveApi.setGantryTilt) tableDriveApi.setGantryTilt(0);
       stopAnimations();
       img.hidden = true; ctrl.hidden = true;
       if (topo) topo.hidden = true;
@@ -2422,9 +2486,13 @@
       if (moveBtn) moveBtn.hidden = true;
       if (reportBtn) reportBtn.hidden = true;
       if (reportEl) reportEl.hidden = true;
+      hideConfirm();
       if (stopBtn) stopBtn.disabled = true;
       counter.textContent = "—";
       topoImg.style.clipPath = "";
+      // Descarta o volume/reformatações e volta o viewer ao plano axial.
+      plane = "axial"; vol = null; mprCache = {};
+      if (planeEl) planeEl.hidden = true;
     }
 
     // Topograma com física real: tubo ESTACIONÁRIO, a MESA translada o
@@ -2508,6 +2576,7 @@
       }
       startBtn.disabled = false; startBtn.textContent = "Iniciar";
       atStart = false; isMoving = false;
+      if (tableDriveApi && tableDriveApi.setGantryTilt) tableDriveApi.setGantryTilt(protocolParams().tiltDeg);
       fitTopo();
       applyBox(); renderReadout(); // renderReadout pode voltar a travar o Iniciar
       if (stopBtn) stopBtn.disabled = false;
@@ -2539,12 +2608,38 @@
           : '<span class="is-bad">fora do isocentro (' + iso.toFixed(1) + ' cm) — magnificação no topograma lateral</span>');
       var rows = [];
       if (pac) rows.push("<strong>Paciente:</strong> " + pac.nome + " · " + (pac.prontuario ? "Pront. " + pac.prontuario : "s/ prontuário") + (pac.regiao ? " · " + pac.regiao : ""));
-      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · direção " + (pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)"));
+      var modoTxt = pp.modo === "sequencial" ? "axial sequencial" : "helicoidal";
+      var tiltTxt = (pp.tiltDeg ? (", tilt " + pp.tiltDeg.toFixed(0) + "°") : "");
+      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · " + modoTxt + tiltTxt + " · direção " + (pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)"));
       rows.push("<strong>Faixa varrida:</strong> " + Math.round(scanLen) + " mm · <strong>FOV A-P:</strong> " + Math.max(0, boxState.bottom - boxState.top).toFixed(0) + "% da imagem");
-      rows.push("<strong>Mesa:</strong> " + Math.round(speed) + " mm/s (pitch " + pp.pitch + " × colimação " + pp.colim.toFixed(1) + " mm ÷ rotação " + ROT_S.toFixed(1) + " s)");
+      if (pp.modo === "sequencial") {
+        rows.push("<strong>Mesa:</strong> passo a passo (step-and-shoot) · colimação " + pp.colim.toFixed(1) + " mm · rotação " + pp.rotacaoS.toFixed(1) + " s");
+      } else {
+        rows.push("<strong>Mesa:</strong> " + Math.round(speed) + " mm/s (pitch " + pp.pitch + " × colimação " + pp.colim.toFixed(1) + " mm ÷ rotação " + pp.rotacaoS.toFixed(1) + " s)");
+      }
       rows.push("<strong>Posicionamento no isocentro:</strong> " + isoTxt);
       if (!isNaN(dlp)) {
-        rows.push("<strong>Dose (didática):</strong> DLP ≈ CTDIvol " + dose + " mGy × " + (scanLen / 10).toFixed(1) + " cm = <strong>" + dlp.toFixed(0) + " mGy·cm</strong>");
+        // CTDIvol de crânio é referido ao fantoma de CABEÇA (PMMA 16 cm),
+        // distinto do fantoma de corpo (32 cm). Dose efetiva didática:
+        // E ≈ DLP × k, com k de cabeça do adulto ≈ 0,0021 mSv/(mGy·cm)
+        // (fatores de ICRP/EUR — apenas para ordem de grandeza).
+        var K_HEAD = 0.0021;
+        var eff = dlp * K_HEAD; // mSv
+        rows.push("<strong>Dose (didática):</strong> CTDIvol " + dose +
+          " mGy <small>(fantoma de cabeça 16 cm)</small> × " + (scanLen / 10).toFixed(1) +
+          " cm → DLP ≈ <strong>" + dlp.toFixed(0) + " mGy·cm</strong>");
+        rows.push("<strong>Dose efetiva (estimada):</strong> E ≈ DLP × k(cabeça " +
+          K_HEAD.toFixed(4) + ") ≈ <strong>" + eff.toFixed(2) + " mSv</strong>");
+        // DRL didático de referência para crânio adulto (~1000 mGy·cm).
+        var DRL_HEAD = 1000;
+        if (dlp > DRL_HEAD * 1.2) {
+          rows.push('<span class="is-bad">DLP acima do nível de referência didático de crânio (~' + DRL_HEAD + ' mGy·cm) — revise mAs/faixa.</span>');
+        }
+      }
+      // Alerta de pitch: no crânio helicoidal usa-se pitch < 1 para conter
+      // ruído/dose; pitch > 1 é atípico. No sequencial o pitch não se aplica.
+      if (pp.modo !== "sequencial" && pp.pitch > 1.0) {
+        rows.push('<span class="is-bad">Pitch ' + pp.pitch + ' > 1 no crânio: aumenta o ruído; o usual é pitch < 1 (ou axial sequencial).</span>');
       }
       rows.push("<em>Valores didáticos para treinamento de operação — sem validade clínica ou dosimétrica.</em>");
       bodyEl.innerHTML = rows.join("<br>");
@@ -2611,6 +2706,7 @@
     function toVolAcq() {
       phase = "volAcq"; loaded = false;
       announcePhase("volAcq");
+      hideConfirm();
       if (topo) topo.hidden = true;
       if (readout) readout.hidden = true;
       img.hidden = false; ctrl.hidden = false;
@@ -2624,7 +2720,7 @@
       var pp = protocolParams();
       // Comprimento da varredura = faixa CC planejada no topograma (mm)
       var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
-      var speed = Math.max(10, Math.min(120, (pp.pitch * pp.colim) / ROT_S)); // mm/s
+      var speed = Math.max(10, Math.min(120, (pp.pitch * pp.colim) / pp.rotacaoS)); // mm/s
       lastAcq = { scanLen: scanLen, speed: speed, pp: pp };
       function paintProg(k) {
         var idx = Math.round(k * (total - 1));
@@ -2637,15 +2733,22 @@
       }
       if (ctrl) ctrl.classList.add("is-acquiring");
       paintProg(0);
-      soundStart("vol", ROT_S);
+      // Modo AXIAL SEQUENCIAL (step-and-shoot): a mesa avança em passos; a
+      // cada parada o gantry gira e adquire um grupo de cortes (feixe só com
+      // a mesa parada). Fisicamente distinto do helicoidal.
+      if (pp.modo === "sequencial" && tableDriveApi) {
+        runSequential(pp, total, scanLen);
+        return;
+      }
+      soundStart("vol", pp.rotacaoS);
       if (tableDriveApi) {
         var res = tableDriveApi.start({
           distanceMm: scanLen,
           direction: pp.direcao === "craniocaudal" ? "in" : "out",
           speedMmS: speed,
-          rotTimeS: ROT_S, // liga o arco de varredura girando no bore
+          rotTimeS: pp.rotacaoS, // liga o arco de varredura girando no bore
           onProgress: function (k) { paintProg(k); },
-          onDone: function () { soundStop(); toReview(); },
+          onDone: function () { soundStop(); toRecon(); },
           onAbort: function (motivo) {
             if (phase !== "volAcq") return;
             soundStop(); toPlan(true);
@@ -2666,11 +2769,222 @@
         if (i >= total) {
           clearInterval(volTimer); volTimer = null;
           soundStop();
-          toReview();
+          toRecon();
           return;
         }
         paintProg(i / (total - 1));
       }, stepMs);
+
+      // ---- aquisição AXIAL SEQUENCIAL (step-and-shoot) ----
+      // steps ≈ comprimento ÷ colimação (grupos de cortes por rotação). A cada
+      // passo: ADQUIRE (mesa parada, arco girando, revela o grupo) e AVANÇA a
+      // mesa (arco desligado) até o próximo. Hoisted — usada acima.
+      function runSequential(pp, total, scanLen) {
+        var steps = Math.max(3, Math.min(12, Math.round(scanLen / Math.max(5, pp.colim))));
+        var dir = pp.direcao === "craniocaudal" ? "in" : "out";
+        var stepLenMm = scanLen / steps;
+        var acqMsPerStep = 700; // duração didática da rotação estacionária
+        var s = 0;
+        function sliceEndForStep(st) { return Math.min(total - 1, Math.round((st + 1) / steps * (total - 1))); }
+        function paintSeq(idx, stepNum, moving) {
+          var n = (pp.direcao === "craniocaudal") ? (total - 1 - idx) : idx;
+          lastSlice = n;
+          img.src = srcFor(n);
+          slider.value = n;
+          counter.textContent = (moving ? "AVANÇANDO MESA" : "ADQUIRINDO") +
+            " — passo " + stepNum + " / " + steps + " · corte " + (idx + 1) + " / " + total;
+        }
+        function acquireStep() {
+          if (phase !== "volAcq") return;
+          var startIdx = (s === 0) ? 0 : (sliceEndForStep(s - 1) + 1);
+          var endIdx = sliceEndForStep(s);
+          if (endIdx < startIdx) endIdx = startIdx;
+          if (tableDriveApi.setScan) tableDriveApi.setScan(pp.rotacaoS); // arco gira, mesa parada
+          soundStart("vol", pp.rotacaoS);
+          var i = startIdx;
+          var span = Math.max(1, endIdx - startIdx);
+          var tickMs = Math.max(40, Math.round(acqMsPerStep / (span + 1)));
+          paintSeq(startIdx, s + 1, false);
+          volTimer = setInterval(function () {
+            if (phase !== "volAcq") { clearInterval(volTimer); volTimer = null; return; }
+            i++;
+            if (i > endIdx) {
+              clearInterval(volTimer); volTimer = null;
+              if (tableDriveApi.setScan) tableDriveApi.setScan(0);
+              soundStop();
+              moveOrFinish();
+              return;
+            }
+            paintSeq(i, s + 1, false);
+          }, tickMs);
+        }
+        function moveOrFinish() {
+          if (phase !== "volAcq") return;
+          if (s >= steps - 1) { toRecon(); return; }
+          soundStart("topo", 0); // zumbido de mesa em movimento (sem feixe)
+          var res = tableDriveApi.start({
+            distanceMm: stepLenMm,
+            direction: dir,
+            speedMmS: 80,
+            rotTimeS: 0,
+            label: "AVANÇANDO MESA",
+            onProgress: function () { counter.textContent = "AVANÇANDO MESA — passo " + (s + 2) + " / " + steps; },
+            onDone: function () { soundStop(); s++; acquireStep(); },
+            onAbort: function (motivo) {
+              if (phase !== "volAcq") return;
+              soundStop(); if (tableDriveApi.setScan) tableDriveApi.setScan(0);
+              toPlan(true);
+              showMessage("Aquisição sequencial abortada: " + motivo, "warning");
+            }
+          });
+          if (!res.ok) {
+            soundStop(); if (tableDriveApi.setScan) tableDriveApi.setScan(0);
+            toPlan(true);
+            showMessage(res.motivo + " (série sequencial: reposicione a mesa com mais curso).", "warning");
+          }
+        }
+        acquireStep();
+      }
+    }
+
+    // ---- RECONSTRUÇÃO + MPR (reformatações coronal/sagital) ----
+    // Após a aquisição, monta um volume a partir da pilha axial (desenhando
+    // cada PNG num canvas offscreen e lendo os pixels), permitindo cortar o
+    // volume em coronal e sagital no navegador — sem novos assets. Se algo
+    // falhar (canvas "tainted", memória), segue só com o axial.
+    var planeEl = document.getElementById("ws-plane");
+    function spacing() {
+      var sp = (manifest && manifest.espacamento_mm) || {};
+      return { x: +sp.x || 0.4297, y: +sp.y || 0.4297, z: +sp.z || 2.528 };
+    }
+    function buildVolume(done) {
+      try {
+        var Z = manifest.cortes;
+        var W = 256; // subamostragem para caber em memória e ser fluido
+        var scale = W / (manifest.largura || 512);
+        var H = Math.max(1, Math.round((manifest.altura || 507) * scale));
+        var cvs = document.createElement("canvas"); cvs.width = W; cvs.height = H;
+        var cx = cvs.getContext("2d", { willReadFrequently: true });
+        var slices = new Array(Z);
+        var loadedN = 0, failed = false;
+        for (var z = 0; z < Z; z++) {
+          (function (z) {
+            var im = new Image();
+            im.onload = function () {
+              try {
+                cx.drawImage(im, 0, 0, W, H);
+                var d = cx.getImageData(0, 0, W, H).data;
+                var g = new Uint8Array(W * H);
+                for (var p = 0, q = 0; p < d.length; p += 4, q++) g[q] = d[p];
+                slices[z] = g;
+              } catch (e) { failed = true; }
+              if (++loadedN === Z) finish();
+            };
+            im.onerror = function () { failed = true; if (++loadedN === Z) finish(); };
+            im.src = srcFor(z);
+          })(z);
+        }
+        function finish() {
+          if (failed) { vol = null; done(false); return; }
+          var sp = spacing();
+          vol = { W: W, H: H, Z: Z, slices: slices, spX: sp.x, spY: sp.y, spZ: sp.z };
+          done(true);
+        }
+      } catch (e) { vol = null; done(false); }
+    }
+    function buildReformat(pl, idx) {
+      if (!vol) return null;
+      var key = pl + ":" + idx;
+      if (mprCache[key]) return mprCache[key];
+      var W = vol.W, H = vol.H, Z = vol.Z;
+      var Xmm = (manifest.largura || 512) * vol.spX;
+      var Ymm = (manifest.altura || 507) * vol.spY;
+      var Zmm = Z * vol.spZ;
+      var raw = document.createElement("canvas"), out = document.createElement("canvas");
+      var url;
+      if (pl === "coronal") {
+        raw.width = W; raw.height = Z;
+        var rc = raw.getContext("2d");
+        var id = rc.createImageData(W, Z);
+        for (var z = 0; z < Z; z++) {
+          var row = Z - 1 - z; // z=0 (base) fica embaixo; vértice no topo
+          var s = vol.slices[z]; if (!s) continue;
+          for (var x = 0; x < W; x++) {
+            var v = s[idx * W + x], o = (row * W + x) * 4;
+            id.data[o] = id.data[o + 1] = id.data[o + 2] = v; id.data[o + 3] = 255;
+          }
+        }
+        rc.putImageData(id, 0, 0);
+        out.width = W; out.height = Math.max(1, Math.round(W * Zmm / Xmm));
+        var oc = out.getContext("2d"); oc.imageSmoothingEnabled = true;
+        oc.drawImage(raw, 0, 0, W, Z, 0, 0, out.width, out.height);
+        url = out.toDataURL();
+      } else { // sagital
+        raw.width = Z; raw.height = H;
+        var rc2 = raw.getContext("2d");
+        var id2 = rc2.createImageData(Z, H);
+        for (var y = 0; y < H; y++) {
+          for (var z2 = 0; z2 < Z; z2++) {
+            var col = Z - 1 - z2;
+            var s2 = vol.slices[z2]; if (!s2) continue;
+            var v2 = s2[y * W + idx], o2 = (y * Z + col) * 4;
+            id2.data[o2] = id2.data[o2 + 1] = id2.data[o2 + 2] = v2; id2.data[o2 + 3] = 255;
+          }
+        }
+        rc2.putImageData(id2, 0, 0);
+        out.width = Math.max(1, Math.round(H * Zmm / Ymm)); out.height = H;
+        var oc2 = out.getContext("2d"); oc2.imageSmoothingEnabled = true;
+        oc2.drawImage(raw, 0, 0, Z, H, 0, 0, out.width, out.height);
+        url = out.toDataURL();
+      }
+      mprCache[key] = url;
+      return url;
+    }
+    function planeMax() {
+      if (plane === "coronal") return (vol ? vol.H : 1) - 1;
+      if (plane === "sagital") return (vol ? vol.W : 1) - 1;
+      return (manifest ? manifest.cortes : 1) - 1;
+    }
+    function showReformat(i) {
+      if (!vol) { show(i); return; }
+      var maxI = planeMax();
+      i = Math.max(0, Math.min(maxI, i | 0));
+      var url = buildReformat(plane, i);
+      if (url) img.src = url;
+      slider.value = i;
+      counter.textContent = (plane === "coronal" ? "Coronal " : "Sagital ") + (i + 1) + " / " + (maxI + 1);
+    }
+    function render(i) {
+      if (plane === "axial") show(i);
+      else showReformat(i);
+    }
+    function setPlane(pl) {
+      if (pl !== "axial" && !vol) return; // sem volume, só axial
+      plane = pl;
+      if (planeEl) {
+        Array.prototype.forEach.call(planeEl.querySelectorAll(".ws-plane__btn"), function (b) {
+          b.classList.toggle("is-active", b.getAttribute("data-plane") === pl);
+        });
+      }
+      var maxI = planeMax();
+      slider.min = 0; slider.max = maxI;
+      var mid = Math.round(maxI / 2);
+      render(mid);
+    }
+
+    // Passo de RECONSTRUÇÃO entre a aquisição e a revisão. Monta o volume
+    // (habilita coronal/sagital) exibindo "Reconstruindo…"; ao terminar,
+    // segue para a revisão. Falha ao montar → revisão só com axial.
+    function toRecon() {
+      phase = "recon";
+      if (ctrl) ctrl.classList.remove("is-acquiring");
+      announcePhase("volAcq"); // painel mantém "Volume" ativo durante a recon
+      mprCache = {};
+      slider.disabled = true;
+      startBtn.disabled = true; startBtn.textContent = "Reconstruindo…";
+      counter.textContent = "Reconstruindo volume…";
+      showMessage("Reconstruindo o volume (axial + reformatações coronal/sagital)…", "info");
+      buildVolume(function () { if (phase === "recon") toReview(); });
     }
 
     function toReview() {
@@ -2685,19 +2999,65 @@
       slider.disabled = false;
       startBtn.disabled = true; startBtn.textContent = "Exame adquirido";
       if (stopBtn) stopBtn.disabled = false;
+      // Seletor de plano só quando o volume reconstruiu (MPR disponível).
+      if (planeEl) planeEl.hidden = !vol;
+      plane = "axial";
+      if (planeEl) {
+        Array.prototype.forEach.call(planeEl.querySelectorAll(".ws-plane__btn"), function (b) {
+          b.classList.toggle("is-active", b.getAttribute("data-plane") === "axial");
+        });
+      }
+      slider.min = 0; slider.max = manifest.cortes - 1;
       show(lastSlice);
-      showMessage("Aquisição concluída (" + manifest.cortes + " cortes). Navegue e finalize com Stop.", "success");
+      showMessage("Aquisição concluída (" + manifest.cortes + " cortes)" +
+        (vol ? " — reformatações coronal/sagital disponíveis." : ".") + " Navegue e finalize com Stop.", "success");
     }
 
-    slider.addEventListener("input", function () { if (loaded) show(parseInt(slider.value, 10) || 0); });
+    slider.addEventListener("input", function () { if (loaded) render(parseInt(slider.value, 10) || 0); });
     box.addEventListener("wheel", function (e) {
       if (!loaded) return;
       e.preventDefault();
-      show((parseInt(slider.value, 10) || 0) + (e.deltaY > 0 ? 1 : -1));
+      render((parseInt(slider.value, 10) || 0) + (e.deltaY > 0 ? 1 : -1));
     }, { passive: false });
+    if (planeEl) planeEl.addEventListener("click", function (e) {
+      var b = e.target && e.target.closest ? e.target.closest(".ws-plane__btn") : null;
+      if (!b || !loaded) return;
+      setPlane(b.getAttribute("data-plane"));
+    });
 
     // Iniciar é contextual: em idle adquire o topograma; em plan (com a
     // caixa válida — senão fica travado) inicia a aquisição do volume.
+    // Confirmação pré-aquisição: resumo do exame + checklist de segurança
+    // (paciente, posicionamento, faixa/FOV, isocentro) antes de irradiar.
+    function buildConfirm() {
+      var bodyEl = document.getElementById("ws-confirm-body");
+      if (!bodyEl) return;
+      var pac = (examSessionApi && examSessionApi.get) ? examSessionApi.get() : null;
+      var prot = examProtocol ? examProtocol.data : null;
+      var pp = protocolParams();
+      var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
+      var dose = NaN;
+      if (prot && prot.dose) { var m = String(prot.dose).replace(/,/g, ".").match(/\d+(\.\d+)?/); if (m) dose = parseFloat(m[0]); }
+      var dlp = (dose > 0) ? dose * (scanLen / 10) : NaN;
+      var iso = (tableDriveApi && tableDriveApi.getIsoOffsetCm) ? tableDriveApi.getIsoOffsetCm() : null;
+      function chk(ok, txt) { return '<span class="' + (ok ? "is-good" : "is-bad") + '">' + (ok ? "✓" : "⚠") + " " + txt + "</span>"; }
+      var modoTxt = pp.modo === "sequencial" ? "axial sequencial" : "helicoidal";
+      var rows = [];
+      rows.push("<strong>Paciente:</strong> " + (pac ? pac.nome + (pac.prontuario ? " · Pront. " + pac.prontuario : "") : "—"));
+      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · " + modoTxt + (pp.tiltDeg ? (", tilt " + pp.tiltDeg.toFixed(0) + "°") : "") + " · " + (pp.direcao === "craniocaudal" ? "crânio-caudal" : "caudo-cranial"));
+      rows.push("<strong>Faixa:</strong> " + Math.round(scanLen) + " mm · <strong>FOV A-P:</strong> " + Math.max(0, boxState.bottom - boxState.top).toFixed(0) + "%");
+      if (!isNaN(dlp)) rows.push("<strong>Dose estimada:</strong> DLP ≈ " + dlp.toFixed(0) + " mGy·cm");
+      rows.push("<br><strong>Checklist pré-aquisição</strong>");
+      rows.push(chk(!!pac, "Paciente cadastrado"));
+      rows.push(chk(!tableDriveApi || tableDriveApi.isPatientOnTable(), "Paciente posicionado na mesa"));
+      rows.push(chk(problems().length === 0, "Faixa e FOV válidos"));
+      if (iso != null) rows.push(chk(Math.abs(iso) <= 4, "Isocentro (" + iso.toFixed(1) + " cm do centro)"));
+      rows.push("<em>Confira antes de irradiar — treinamento de operação.</em>");
+      bodyEl.innerHTML = rows.join("<br>");
+    }
+    function showConfirm() { buildConfirm(); var el = document.getElementById("ws-confirm"); if (el) el.hidden = false; }
+    function hideConfirm() { var el = document.getElementById("ws-confirm"); if (el) el.hidden = true; }
+
     function onStart() {
       if (phase === "plan") {
         if (problems().length) { renderReadout(); return; }
@@ -2705,7 +3065,9 @@
           showMessage("Use MOVER para levar a mesa à posição inicial da faixa antes de iniciar.", "warning");
           return;
         }
-        toVolAcq();
+        // Confirmação pré-aquisição (como no console real): resumo + checklist
+        // antes de irradiar. O disparo do volume só ocorre no "Confirmar".
+        showConfirm();
         return;
       }
       if (phase !== "idle") return;
@@ -2761,6 +3123,13 @@
     startBtn.addEventListener("click", onStart);
     if (stopBtn) stopBtn.addEventListener("click", onStop);
     if (moveBtn) moveBtn.addEventListener("click", onMove);
+    var confirmOk = document.getElementById("ws-confirm-ok");
+    var confirmCancel = document.getElementById("ws-confirm-cancel");
+    if (confirmOk) confirmOk.addEventListener("click", function () {
+      hideConfirm();
+      if (phase === "plan") toVolAcq();
+    });
+    if (confirmCancel) confirmCancel.addEventListener("click", hideConfirm);
     var reportClose = document.getElementById("ws-report-close");
     if (reportClose) reportClose.addEventListener("click", function () { if (reportEl) reportEl.hidden = true; });
     if (reportBtn) reportBtn.addEventListener("click", function () {
@@ -3313,6 +3682,15 @@
       return pi > maxActive ? "done" : "pending";
     }
 
+    // Subtítulo do passo de volume reflete o modo do protocolo em exame
+    // (axial sequencial × helicoidal), em vez de um rótulo fixo.
+    function stepSub(s) {
+      if (s.name.indexOf("Volume") === 0) {
+        var p = (examProtocol && examProtocol.data) || null;
+        return (p && p.modo === "sequencial") ? "axial sequencial" : "helicoidal";
+      }
+      return s.sub;
+    }
     function renderSeq(phase) {
       if (!seqEl) return;
       phase = ORDER.indexOf(phase) >= 0 ? phase : "idle";
@@ -3323,7 +3701,7 @@
         html += '<li class="acq-step is-' + st + '">' +
           '<span class="acq-step__num">' + (st === "done" ? "✓" : (i + 1)) + '</span>' +
           '<span class="acq-step__body"><span class="acq-step__name">' + s.name + '</span>' +
-          '<span class="acq-step__sub">' + s.sub + '</span></span>' +
+          '<span class="acq-step__sub">' + stepSub(s) + '</span></span>' +
           '<span class="acq-step__state">' + label + '</span></li>';
       });
       seqEl.innerHTML = html;
@@ -3332,13 +3710,17 @@
     function dirTxt(d) {
       return d === "craniocaudal" ? "Crânio-caudal (mesa entra)" : "Caudo-cranial (mesa sai)";
     }
+    function modoTxt(m) {
+      return m === "sequencial" ? "Axial sequencial" : "Helicoidal";
+    }
     function renderParams() {
       if (!paramsEl) return;
       var p = (examProtocol && examProtocol.data) || null;
       var rows = [
         ["kV", p && p.kv], ["mAs", p && p.mas], ["Pitch", p && p.pitch], ["FOV", p && p.fov],
         ["Colimação", p && p.colimacao], ["Esp. corte", p && p.espessura],
-        ["Kernel", p && p.kernel], ["CTDIvol", p && p.dose]
+        ["Kernel", p && p.kernel], ["CTDIvol", p && p.dose],
+        ["Modo", p && modoTxt(p.modo)], ["Tilt", p && (p.tilt !== "" && p.tilt != null ? p.tilt + "°" : null)]
       ];
       var html = "";
       if (!p) {
