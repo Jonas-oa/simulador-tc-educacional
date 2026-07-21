@@ -2262,7 +2262,12 @@
       // No layout de 4 quadrantes o topograma vive no próprio quadrante
       // (não mais dentro do viewer de cortes) — medimos o container real.
       var r = (topo.parentNode || box).getBoundingClientRect();
-      var availW = Math.max(60, r.width - 24);
+      // No celular (aba Exame) a faixa de comandos ocupa a direita do
+      // quadrante — desconta a largura dela para a imagem caber na área útil.
+      var railW = 0;
+      var cmds = document.getElementById("acq-topo-cmds");
+      if (cmds && !cmds.hidden) railW = cmds.getBoundingClientRect().width + 6;
+      var availW = Math.max(60, r.width - 24 - railW);
       var availH = Math.max(60, r.height - 24);
       var s = Math.min(availW / natW, availH / natH);
       topo.style.width = Math.max(1, Math.floor(natW * s)) + "px";
@@ -3753,6 +3758,37 @@
   // =================================================================
   // INICIALIZAÇÃO
   // =================================================================
+  // =================================================================
+  // COMANDOS DA AQUISIÇÃO NA LATERAL DO TOPOGRAMA (só celular)
+  // No celular (aba Exame), os botões Iniciar/Stop/Mover/Relatório saem do
+  // rodapé da "Sequência dos protocolos" e vão para uma faixa vertical à
+  // DIREITA do quadrante do Topograma — mais perto da ação. Reparenting
+  // reversível (mesmo padrão do PiP do 3D): no desktop os botões voltam ao
+  // rodapé original. Vale em paisagem e retrato. Não altera IDs/eventos.
+  // =================================================================
+  function initMobileExamCommands() {
+    var foot = document.querySelector(".acq-seq__foot");
+    var host = document.getElementById("acq-topo-cmds");
+    if (!foot || !host) return;
+    var home = foot.parentNode;
+    var homeNext = foot.nextSibling;
+    function update() {
+      var b = document.body;
+      var want = b.classList.contains("is-mobile") && b.classList.contains("mob-aq");
+      if (want) {
+        if (foot.parentNode !== host) host.appendChild(foot);
+        host.hidden = false;
+      } else {
+        if (foot.parentNode !== home) home.insertBefore(foot, homeNext);
+        host.hidden = true;
+      }
+    }
+    var mo = new MutationObserver(update);
+    mo.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    window.addEventListener("resize", update);
+    update();
+  }
+
   function main() {
     initTheme();
     bootstrap();
@@ -3765,6 +3801,7 @@
     initConsoleMode();
     initAcqPip();
     initAcqQuadrants();
+    initMobileExamCommands();
   }
 
   if (document.readyState === "loading") {

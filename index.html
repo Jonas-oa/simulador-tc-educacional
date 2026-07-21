@@ -10,8 +10,8 @@
   <meta name="theme-color" content="#0a0e14" />
   <link rel="icon" href="icons/icon-192.png" />
 
-  <link rel="stylesheet" href="css/style.css?v=20260721c" />
-  <link rel="stylesheet" href="css/mobile-tabs.css?v=20260721c" />
+  <link rel="stylesheet" href="css/style.css?v=20260721d" />
+  <link rel="stylesheet" href="css/mobile-tabs.css?v=20260721d" />
 </head>
 <body data-theme="dark">
 
@@ -178,6 +178,10 @@
             </div>
             <span class="acq-quad__ph" id="acq-topo-ph">Topograma não adquirido</span>
             <p class="ws-topo-readout" id="ws-topo-readout" hidden></p>
+            <!-- Faixa de comandos: recebe os botões da aquisição (Iniciar/Stop/
+                 Mover/Relatório) por reparenting SÓ no celular (aba Exame). No
+                 desktop fica vazia/oculta e os botões seguem na Sequência. -->
+            <div class="acq-topo-cmds" id="acq-topo-cmds" hidden></div>
           </div>
         </section>
 
@@ -372,7 +376,7 @@
   </script>
 
   <script src="js/vendor/three.min.js"></script>
-  <script src="script.js?v=20260721c"></script>
-  <script src="js/mobile-tabs.js?v=20260721c"></script>
+  <script src="script.js?v=20260721d"></script>
+  <script src="js/mobile-tabs.js?v=20260721d"></script>
 </body>
 </html>
