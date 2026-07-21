@@ -2482,6 +2482,7 @@
       if (moveBtn) moveBtn.hidden = true;
       if (reportBtn) reportBtn.hidden = true;
       if (reportEl) reportEl.hidden = true;
+      hideConfirm();
       if (stopBtn) stopBtn.disabled = true;
       counter.textContent = "—";
       topoImg.style.clipPath = "";
@@ -2698,6 +2699,7 @@
     function toVolAcq() {
       phase = "volAcq"; loaded = false;
       announcePhase("volAcq");
+      hideConfirm();
       if (topo) topo.hidden = true;
       if (readout) readout.hidden = true;
       img.hidden = false; ctrl.hidden = false;
@@ -2863,6 +2865,37 @@
 
     // Iniciar é contextual: em idle adquire o topograma; em plan (com a
     // caixa válida — senão fica travado) inicia a aquisição do volume.
+    // Confirmação pré-aquisição: resumo do exame + checklist de segurança
+    // (paciente, posicionamento, faixa/FOV, isocentro) antes de irradiar.
+    function buildConfirm() {
+      var bodyEl = document.getElementById("ws-confirm-body");
+      if (!bodyEl) return;
+      var pac = (examSessionApi && examSessionApi.get) ? examSessionApi.get() : null;
+      var prot = examProtocol ? examProtocol.data : null;
+      var pp = protocolParams();
+      var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
+      var dose = NaN;
+      if (prot && prot.dose) { var m = String(prot.dose).replace(/,/g, ".").match(/\d+(\.\d+)?/); if (m) dose = parseFloat(m[0]); }
+      var dlp = (dose > 0) ? dose * (scanLen / 10) : NaN;
+      var iso = (tableDriveApi && tableDriveApi.getIsoOffsetCm) ? tableDriveApi.getIsoOffsetCm() : null;
+      function chk(ok, txt) { return '<span class="' + (ok ? "is-good" : "is-bad") + '">' + (ok ? "✓" : "⚠") + " " + txt + "</span>"; }
+      var modoTxt = pp.modo === "sequencial" ? "axial sequencial" : "helicoidal";
+      var rows = [];
+      rows.push("<strong>Paciente:</strong> " + (pac ? pac.nome + (pac.prontuario ? " · Pront. " + pac.prontuario : "") : "—"));
+      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · " + modoTxt + (pp.tiltDeg ? (", tilt " + pp.tiltDeg.toFixed(0) + "°") : "") + " · " + (pp.direcao === "craniocaudal" ? "crânio-caudal" : "caudo-cranial"));
+      rows.push("<strong>Faixa:</strong> " + Math.round(scanLen) + " mm · <strong>FOV A-P:</strong> " + Math.max(0, boxState.bottom - boxState.top).toFixed(0) + "%");
+      if (!isNaN(dlp)) rows.push("<strong>Dose estimada:</strong> DLP ≈ " + dlp.toFixed(0) + " mGy·cm");
+      rows.push("<br><strong>Checklist pré-aquisição</strong>");
+      rows.push(chk(!!pac, "Paciente cadastrado"));
+      rows.push(chk(!tableDriveApi || tableDriveApi.isPatientOnTable(), "Paciente posicionado na mesa"));
+      rows.push(chk(problems().length === 0, "Faixa e FOV válidos"));
+      if (iso != null) rows.push(chk(Math.abs(iso) <= 4, "Isocentro (" + iso.toFixed(1) + " cm do centro)"));
+      rows.push("<em>Confira antes de irradiar — treinamento de operação.</em>");
+      bodyEl.innerHTML = rows.join("<br>");
+    }
+    function showConfirm() { buildConfirm(); var el = document.getElementById("ws-confirm"); if (el) el.hidden = false; }
+    function hideConfirm() { var el = document.getElementById("ws-confirm"); if (el) el.hidden = true; }
+
     function onStart() {
       if (phase === "plan") {
         if (problems().length) { renderReadout(); return; }
@@ -2870,7 +2903,9 @@
           showMessage("Use MOVER para levar a mesa à posição inicial da faixa antes de iniciar.", "warning");
           return;
         }
-        toVolAcq();
+        // Confirmação pré-aquisição (como no console real): resumo + checklist
+        // antes de irradiar. O disparo do volume só ocorre no "Confirmar".
+        showConfirm();
         return;
       }
       if (phase !== "idle") return;
@@ -2926,6 +2961,13 @@
     startBtn.addEventListener("click", onStart);
     if (stopBtn) stopBtn.addEventListener("click", onStop);
     if (moveBtn) moveBtn.addEventListener("click", onMove);
+    var confirmOk = document.getElementById("ws-confirm-ok");
+    var confirmCancel = document.getElementById("ws-confirm-cancel");
+    if (confirmOk) confirmOk.addEventListener("click", function () {
+      hideConfirm();
+      if (phase === "plan") toVolAcq();
+    });
+    if (confirmCancel) confirmCancel.addEventListener("click", hideConfirm);
     var reportClose = document.getElementById("ws-report-close");
     if (reportClose) reportClose.addEventListener("click", function () { if (reportEl) reportEl.hidden = true; });
     if (reportBtn) reportBtn.addEventListener("click", function () {
