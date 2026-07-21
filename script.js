@@ -1532,6 +1532,23 @@
         spinArc.visible = spinRotTime > 0;
       }
 
+      // Angulação do gantry (tilt), como no crânio real. O gantryGroup tem
+      // filhos em coordenadas absolutas (isocentro em y=ISO_Y, z=-0.6);
+      // rotacionar direto giraria em torno da origem do mundo. Para manter o
+      // isocentro fixo, rotaciona em X e compensa a posição (T = P - R·P).
+      // Só o visual do gantry inclina — lasers, mesa, paciente e os
+      // intertravamentos (baseados em z do mundo) permanecem intactos.
+      var GANTRY_TILT_PIVOT = new THREE.Vector3(0, ISO_Y, -0.6);
+      function setGantryTilt(deg) {
+        var th = (deg || 0) * Math.PI / 180;
+        var P = GANTRY_TILT_PIVOT;
+        var cos = Math.cos(th), sin = Math.sin(th);
+        var ry = P.y * cos - P.z * sin;
+        var rz = P.y * sin + P.z * cos;
+        gantryGroup.rotation.x = th;
+        gantryGroup.position.set(0, P.y - ry, P.z - rz);
+      }
+
       function abortAutoDrive(motivo) {
         if (!autoDrive) return;
         var ad = autoDrive;
@@ -1583,7 +1600,12 @@
           patientPose.getWorldPosition(v);
           return (v.y - ISO_Y) * 100;
         },
-        stop: function () { abortAutoDrive("Aquisição interrompida pela workstation."); }
+        stop: function () { abortAutoDrive("Aquisição interrompida pela workstation."); },
+        // Inclina o gantry (graus) — visual do tilt de protocolo.
+        setGantryTilt: function (deg) { setGantryTilt(deg); },
+        // Liga/desliga o arco de varredura girando SEM mover a mesa (usado no
+        // step-and-shoot: aquisição com a mesa parada entre os passos).
+        setScan: function (rotTimeS) { setSpin(rotTimeS || 0); }
       };
 
       // -----------------------------------------------------------
@@ -2352,6 +2374,11 @@
       topoBox.style.setProperty("--edge-bottom", boxState.bottom + "%");
       topoBox.style.setProperty("--edge-left", boxState.left + "%");
       topoBox.style.setProperty("--edge-right", boxState.right + "%");
+      // Tilt do gantry: os planos de corte aparecem angulados na scout
+      // lateral (as linhas de faixa giram pelo ângulo do protocolo).
+      var tilt = protocolParams().tiltDeg || 0;
+      topoBox.style.setProperty("--tilt", tilt + "deg");
+      topoBox.classList.toggle("has-tilt", Math.abs(tilt) > 0.5);
     }
     function inZone(v, z) { return v >= z[0] && v <= z[1]; }
     function problems() {
@@ -2435,12 +2462,16 @@
       // Para a mesa se a aquisição estiver em curso. Os handlers onAbort
       // checam a fase — como ela já foi trocada, viram no-op (sem eco).
       if (tableDriveApi && tableDriveApi.isBusy && tableDriveApi.isBusy()) tableDriveApi.stop();
+      // Desliga o arco de varredura (caso estivesse na aquisição estacionária
+      // do step-and-shoot, sem uma mesa em movimento para pará-lo).
+      if (tableDriveApi && tableDriveApi.setScan) tableDriveApi.setScan(0);
     }
     function toIdle() {
       phase = "idle"; loaded = false; lastSlice = 0; lastAcq = null;
       if (ctrl) ctrl.classList.remove("is-acquiring");
       announcePhase("idle");
       topoRef = null; atStart = false; isMoving = false;
+      if (tableDriveApi && tableDriveApi.setGantryTilt) tableDriveApi.setGantryTilt(0);
       stopAnimations();
       img.hidden = true; ctrl.hidden = true;
       if (topo) topo.hidden = true;
@@ -2537,6 +2568,7 @@
       }
       startBtn.disabled = false; startBtn.textContent = "Iniciar";
       atStart = false; isMoving = false;
+      if (tableDriveApi && tableDriveApi.setGantryTilt) tableDriveApi.setGantryTilt(protocolParams().tiltDeg);
       fitTopo();
       applyBox(); renderReadout(); // renderReadout pode voltar a travar o Iniciar
       if (stopBtn) stopBtn.disabled = false;
@@ -2672,6 +2704,13 @@
       }
       if (ctrl) ctrl.classList.add("is-acquiring");
       paintProg(0);
+      // Modo AXIAL SEQUENCIAL (step-and-shoot): a mesa avança em passos; a
+      // cada parada o gantry gira e adquire um grupo de cortes (feixe só com
+      // a mesa parada). Fisicamente distinto do helicoidal.
+      if (pp.modo === "sequencial" && tableDriveApi) {
+        runSequential(pp, total, scanLen);
+        return;
+      }
       soundStart("vol", pp.rotacaoS);
       if (tableDriveApi) {
         var res = tableDriveApi.start({
@@ -2706,6 +2745,77 @@
         }
         paintProg(i / (total - 1));
       }, stepMs);
+
+      // ---- aquisição AXIAL SEQUENCIAL (step-and-shoot) ----
+      // steps ≈ comprimento ÷ colimação (grupos de cortes por rotação). A cada
+      // passo: ADQUIRE (mesa parada, arco girando, revela o grupo) e AVANÇA a
+      // mesa (arco desligado) até o próximo. Hoisted — usada acima.
+      function runSequential(pp, total, scanLen) {
+        var steps = Math.max(3, Math.min(12, Math.round(scanLen / Math.max(5, pp.colim))));
+        var dir = pp.direcao === "craniocaudal" ? "in" : "out";
+        var stepLenMm = scanLen / steps;
+        var acqMsPerStep = 700; // duração didática da rotação estacionária
+        var s = 0;
+        function sliceEndForStep(st) { return Math.min(total - 1, Math.round((st + 1) / steps * (total - 1))); }
+        function paintSeq(idx, stepNum, moving) {
+          var n = (pp.direcao === "craniocaudal") ? (total - 1 - idx) : idx;
+          lastSlice = n;
+          img.src = srcFor(n);
+          slider.value = n;
+          counter.textContent = (moving ? "AVANÇANDO MESA" : "ADQUIRINDO") +
+            " — passo " + stepNum + " / " + steps + " · corte " + (idx + 1) + " / " + total;
+        }
+        function acquireStep() {
+          if (phase !== "volAcq") return;
+          var startIdx = (s === 0) ? 0 : (sliceEndForStep(s - 1) + 1);
+          var endIdx = sliceEndForStep(s);
+          if (endIdx < startIdx) endIdx = startIdx;
+          if (tableDriveApi.setScan) tableDriveApi.setScan(pp.rotacaoS); // arco gira, mesa parada
+          soundStart("vol", pp.rotacaoS);
+          var i = startIdx;
+          var span = Math.max(1, endIdx - startIdx);
+          var tickMs = Math.max(40, Math.round(acqMsPerStep / (span + 1)));
+          paintSeq(startIdx, s + 1, false);
+          volTimer = setInterval(function () {
+            if (phase !== "volAcq") { clearInterval(volTimer); volTimer = null; return; }
+            i++;
+            if (i > endIdx) {
+              clearInterval(volTimer); volTimer = null;
+              if (tableDriveApi.setScan) tableDriveApi.setScan(0);
+              soundStop();
+              moveOrFinish();
+              return;
+            }
+            paintSeq(i, s + 1, false);
+          }, tickMs);
+        }
+        function moveOrFinish() {
+          if (phase !== "volAcq") return;
+          if (s >= steps - 1) { toReview(); return; }
+          soundStart("topo", 0); // zumbido de mesa em movimento (sem feixe)
+          var res = tableDriveApi.start({
+            distanceMm: stepLenMm,
+            direction: dir,
+            speedMmS: 80,
+            rotTimeS: 0,
+            label: "AVANÇANDO MESA",
+            onProgress: function () { counter.textContent = "AVANÇANDO MESA — passo " + (s + 2) + " / " + steps; },
+            onDone: function () { soundStop(); s++; acquireStep(); },
+            onAbort: function (motivo) {
+              if (phase !== "volAcq") return;
+              soundStop(); if (tableDriveApi.setScan) tableDriveApi.setScan(0);
+              toPlan(true);
+              showMessage("Aquisição sequencial abortada: " + motivo, "warning");
+            }
+          });
+          if (!res.ok) {
+            soundStop(); if (tableDriveApi.setScan) tableDriveApi.setScan(0);
+            toPlan(true);
+            showMessage(res.motivo + " (série sequencial: reposicione a mesa com mais curso).", "warning");
+          }
+        }
+        acquireStep();
+      }
     }
 
     function toReview() {
@@ -3348,6 +3458,15 @@
       return pi > maxActive ? "done" : "pending";
     }
 
+    // Subtítulo do passo de volume reflete o modo do protocolo em exame
+    // (axial sequencial × helicoidal), em vez de um rótulo fixo.
+    function stepSub(s) {
+      if (s.name.indexOf("Volume") === 0) {
+        var p = (examProtocol && examProtocol.data) || null;
+        return (p && p.modo === "sequencial") ? "axial sequencial" : "helicoidal";
+      }
+      return s.sub;
+    }
     function renderSeq(phase) {
       if (!seqEl) return;
       phase = ORDER.indexOf(phase) >= 0 ? phase : "idle";
@@ -3358,7 +3477,7 @@
         html += '<li class="acq-step is-' + st + '">' +
           '<span class="acq-step__num">' + (st === "done" ? "✓" : (i + 1)) + '</span>' +
           '<span class="acq-step__body"><span class="acq-step__name">' + s.name + '</span>' +
-          '<span class="acq-step__sub">' + s.sub + '</span></span>' +
+          '<span class="acq-step__sub">' + stepSub(s) + '</span></span>' +
           '<span class="acq-step__state">' + label + '</span></li>';
       });
       seqEl.innerHTML = html;

@@ -962,6 +962,9 @@ body.is-mobile.mob-aq .dash-pane__body { overflow: visible; }
 .ws-topo__line--v::before { top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; }
 .ws-topo__line--range::before { background: var(--accent-cyan); }
 .ws-topo__line--fov::before { background: var(--accent-amber); }
+/* Tilt do gantry: as linhas de faixa (planos de corte) aparecem anguladas
+   na scout lateral, girando pelo ângulo do protocolo. */
+.ws-topo__box.has-tilt .ws-topo__line--v::before { transform: rotate(var(--tilt, 0deg)); transform-origin: 50% 50%; }
 #ws-topo-top { top: var(--edge-top); }
 #ws-topo-bottom { top: var(--edge-bottom); }
 #ws-topo-left { left: var(--edge-left); }
