@@ -1115,13 +1115,25 @@ body.console-mode:not(.is-mobile) .dash-col { display: contents; }
 body.console-mode:not(.is-mobile) .dash-gutter { display: none; }
 body.console-mode:not(.is-mobile) .dash-pane { display: none; flex: 1 1 auto; }
 body.console-mode.cstep-sim:not(.is-mobile) #pane-sim { display: flex; }
-body.console-mode.cstep-pac:not(.is-mobile) #pane-pac { display: flex; }
-body.console-mode.cstep-proto:not(.is-mobile) #pane-proto { display: flex; }
 body.console-mode.cstep-acq:not(.is-mobile) #pane-acq { display: flex; }
-/* Etapas de formulário centralizadas e legíveis em tela cheia */
+/* Etapa 2 combinada: Cadastro (esquerda) + Protocolo (direita) lado a lado.
+   pane-pac e pane-proto viram irmãos flex diretos de .dashboard (as colunas
+   estão em display:contents no modo console), então basta exibi-los juntos. */
+body.console-mode.cstep-pacproto:not(.is-mobile) #pane-pac,
+body.console-mode.cstep-pacproto:not(.is-mobile) #pane-proto { display: flex; }
+body.console-mode.cstep-pacproto:not(.is-mobile) #pane-pac {
+  flex: 0 0 clamp(340px, 36%, 480px); border-right: 0;
+}
+body.console-mode.cstep-pacproto:not(.is-mobile) #pane-proto { flex: 1 1 auto; }
+/* Formulário do paciente (etapa isolada, se acessada) centralizado; na etapa
+   combinada cada painel preenche a sua coluna. */
 body.console-mode:not(.is-mobile) #pane-pac .dash-pane__body,
 body.console-mode:not(.is-mobile) #pane-proto .dash-pane__body {
   max-width: 880px; width: 100%; margin: 0 auto;
+}
+body.console-mode.cstep-pacproto:not(.is-mobile) #pane-pac .dash-pane__body,
+body.console-mode.cstep-pacproto:not(.is-mobile) #pane-proto .dash-pane__body {
+  max-width: none; margin: 0;
 }
 
 /* Picture-in-picture da sala 3D durante a aquisição (modo console):
