@@ -1921,8 +1921,8 @@
     var zones = document.querySelectorAll("[data-region]");
     if (!listEl || !editor || !regionLabel) return;
 
-    var FIELDS = ["kv", "mas", "pitch", "direcao", "colim", "thick", "kernel", "fov", "dose"];
-    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", direcao: "direcao", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov", dose: "dose" };
+    var FIELDS = ["kv", "mas", "pitch", "direcao", "modo", "tilt", "rot", "colim", "thick", "kernel", "fov", "dose"];
+    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", direcao: "direcao", modo: "modo", tilt: "tilt", rot: "rotacao", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov", dose: "dose" };
     function inputEl(f) { return document.getElementById("ws-param-" + f); }
 
     var protocols = [];
@@ -1932,7 +1932,7 @@
     var memoryFallback = false;
 
     function blank(id, nome, regiao) {
-      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", direcao: "caudocranial", colimacao: "", espessura: "", kernel: "", fov: "", dose: "", obs: "" };
+      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", direcao: "caudocranial", modo: "helicoidal", tilt: "", rotacao: "", colimacao: "", espessura: "", kernel: "", fov: "", dose: "", obs: "" };
     }
 
     // Etapa D — valores DIDÁTICOS de referência (AAPM / DRLs) para TC de crânio.
@@ -1941,8 +1941,11 @@
       return {
         kv: "120",
         mas: "300",
-        pitch: "1,2",
+        pitch: "0,55",
         direcao: "caudocranial",
+        modo: "sequencial",
+        tilt: "0",
+        rotacao: "1,0",
         colimacao: "64 × 0,6 mm",
         espessura: "5,0 mm encéfalo / 1,25 mm osso",
         kernel: "Encéfalo (liso) + Osso (nítido)",
@@ -1988,6 +1991,21 @@
       { id: "memb_sup", nome: "Membro superior",  regiao: "Membros" },
       { id: "memb_inf", nome: "Membro inferior",  regiao: "Membros" }
     ];
+    // Migração: campos estruturados (modo/tilt/rotacao) adicionados depois.
+    // Garante-os em protocolos salvos por versões anteriores. O crânio ganha
+    // os padrões didáticos (sequencial, tilt 0, rotação 1,0); os demais,
+    // helicoidal por padrão. Só persiste quando de fato completou algo.
+    function ensureStructuredFields() {
+      protocols.forEach(function (p) {
+        var changed = false;
+        if (p.modo === undefined || p.modo === "") {
+          p.modo = (p.id === "cranio") ? "sequencial" : "helicoidal"; changed = true;
+        }
+        if (p.tilt === undefined) { p.tilt = (p.id === "cranio") ? "0" : ""; changed = true; }
+        if (p.rotacao === undefined) { p.rotacao = (p.id === "cranio") ? "1,0" : ""; changed = true; }
+        if (changed) persist(p);
+      });
+    }
     function ensureCatalog() {
       CATALOGO.forEach(function (c) {
         if (!byId(c.id)) {
@@ -1997,6 +2015,7 @@
         }
       });
       applyCranioDefaultsIfBlank();
+      ensureStructuredFields();
     }
     function cranioSeed() {
       var p = blank("cranio", "Crânio", "Crânio");
@@ -2020,6 +2039,8 @@
       FIELDS.forEach(function (f) { var el = inputEl(f); if (el) el.value = p ? (p[FIELD_KEYS[f]] || "") : ""; });
       var dirEl = inputEl("direcao");
       if (dirEl && !dirEl.value) dirEl.value = "caudocranial"; // protocolos antigos sem o campo
+      var modoEl = inputEl("modo");
+      if (modoEl && !modoEl.value) modoEl.value = "helicoidal"; // idem
     }
     function setMode(m) {
       mode = m;
@@ -2240,10 +2261,18 @@
       }
       var pitch = num(p.pitch);
       if (!(pitch > 0)) pitch = 1.0;
+      var rot = num(p.rotacao);
+      if (!(rot > 0)) rot = ROT_S;
+      var tilt = num(p.tilt);
+      if (isNaN(tilt)) tilt = 0;
+      tilt = Math.max(-30, Math.min(30, tilt));
       return {
         direcao: p.direcao === "craniocaudal" ? "craniocaudal" : "caudocranial",
+        modo: p.modo === "sequencial" ? "sequencial" : "helicoidal",
         pitch: pitch,
-        colim: colimMm(p.colimacao)
+        colim: colimMm(p.colimacao),
+        rotacaoS: rot,
+        tiltDeg: tilt
       };
     }
 
@@ -2539,9 +2568,15 @@
           : '<span class="is-bad">fora do isocentro (' + iso.toFixed(1) + ' cm) — magnificação no topograma lateral</span>');
       var rows = [];
       if (pac) rows.push("<strong>Paciente:</strong> " + pac.nome + " · " + (pac.prontuario ? "Pront. " + pac.prontuario : "s/ prontuário") + (pac.regiao ? " · " + pac.regiao : ""));
-      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · direção " + (pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)"));
+      var modoTxt = pp.modo === "sequencial" ? "axial sequencial" : "helicoidal";
+      var tiltTxt = (pp.tiltDeg ? (", tilt " + pp.tiltDeg.toFixed(0) + "°") : "");
+      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · " + modoTxt + tiltTxt + " · direção " + (pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)"));
       rows.push("<strong>Faixa varrida:</strong> " + Math.round(scanLen) + " mm · <strong>FOV A-P:</strong> " + Math.max(0, boxState.bottom - boxState.top).toFixed(0) + "% da imagem");
-      rows.push("<strong>Mesa:</strong> " + Math.round(speed) + " mm/s (pitch " + pp.pitch + " × colimação " + pp.colim.toFixed(1) + " mm ÷ rotação " + ROT_S.toFixed(1) + " s)");
+      if (pp.modo === "sequencial") {
+        rows.push("<strong>Mesa:</strong> passo a passo (step-and-shoot) · colimação " + pp.colim.toFixed(1) + " mm · rotação " + pp.rotacaoS.toFixed(1) + " s");
+      } else {
+        rows.push("<strong>Mesa:</strong> " + Math.round(speed) + " mm/s (pitch " + pp.pitch + " × colimação " + pp.colim.toFixed(1) + " mm ÷ rotação " + pp.rotacaoS.toFixed(1) + " s)");
+      }
       rows.push("<strong>Posicionamento no isocentro:</strong> " + isoTxt);
       if (!isNaN(dlp)) {
         rows.push("<strong>Dose (didática):</strong> DLP ≈ CTDIvol " + dose + " mGy × " + (scanLen / 10).toFixed(1) + " cm = <strong>" + dlp.toFixed(0) + " mGy·cm</strong>");
@@ -2624,7 +2659,7 @@
       var pp = protocolParams();
       // Comprimento da varredura = faixa CC planejada no topograma (mm)
       var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
-      var speed = Math.max(10, Math.min(120, (pp.pitch * pp.colim) / ROT_S)); // mm/s
+      var speed = Math.max(10, Math.min(120, (pp.pitch * pp.colim) / pp.rotacaoS)); // mm/s
       lastAcq = { scanLen: scanLen, speed: speed, pp: pp };
       function paintProg(k) {
         var idx = Math.round(k * (total - 1));
@@ -2637,13 +2672,13 @@
       }
       if (ctrl) ctrl.classList.add("is-acquiring");
       paintProg(0);
-      soundStart("vol", ROT_S);
+      soundStart("vol", pp.rotacaoS);
       if (tableDriveApi) {
         var res = tableDriveApi.start({
           distanceMm: scanLen,
           direction: pp.direcao === "craniocaudal" ? "in" : "out",
           speedMmS: speed,
-          rotTimeS: ROT_S, // liga o arco de varredura girando no bore
+          rotTimeS: pp.rotacaoS, // liga o arco de varredura girando no bore
           onProgress: function (k) { paintProg(k); },
           onDone: function () { soundStop(); toReview(); },
           onAbort: function (motivo) {
@@ -3332,13 +3367,17 @@
     function dirTxt(d) {
       return d === "craniocaudal" ? "Crânio-caudal (mesa entra)" : "Caudo-cranial (mesa sai)";
     }
+    function modoTxt(m) {
+      return m === "sequencial" ? "Axial sequencial" : "Helicoidal";
+    }
     function renderParams() {
       if (!paramsEl) return;
       var p = (examProtocol && examProtocol.data) || null;
       var rows = [
         ["kV", p && p.kv], ["mAs", p && p.mas], ["Pitch", p && p.pitch], ["FOV", p && p.fov],
         ["Colimação", p && p.colimacao], ["Esp. corte", p && p.espessura],
-        ["Kernel", p && p.kernel], ["CTDIvol", p && p.dose]
+        ["Kernel", p && p.kernel], ["CTDIvol", p && p.dose],
+        ["Modo", p && modoTxt(p.modo)], ["Tilt", p && (p.tilt !== "" && p.tilt != null ? p.tilt + "°" : null)]
       ];
       var html = "";
       if (!p) {

@@ -290,6 +290,12 @@
                   <option value="caudocranial">Caudo-cranial (mesa sai do gantry)</option>
                   <option value="craniocaudal">Crânio-caudal (mesa entra no gantry)</option>
                 </select></label>
+                <label class="ws-field"><span class="ws-field__label">Modo de aquisição</span><select class="ws-input" id="ws-param-modo" disabled>
+                  <option value="sequencial">Axial sequencial (step-and-shoot)</option>
+                  <option value="helicoidal">Helicoidal (espiral)</option>
+                </select></label>
+                <label class="ws-field"><span class="ws-field__label">Tilt do gantry (°)</span><input class="ws-input" id="ws-param-tilt" type="number" min="-30" max="30" step="1" placeholder="0" disabled></label>
+                <label class="ws-field"><span class="ws-field__label">Tempo de rotação (s)</span><input class="ws-input" id="ws-param-rot" type="text" placeholder="1,0" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">Colimação</span><input class="ws-input" id="ws-param-colim" type="text" placeholder="—" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">Esp. corte</span><input class="ws-input" id="ws-param-thick" type="text" placeholder="—" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">Kernel</span><input class="ws-input" id="ws-param-kernel" type="text" placeholder="—" disabled></label>
