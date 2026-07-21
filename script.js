@@ -1794,6 +1794,7 @@
   var examProtocol = { name: "", data: null, refresh: null };
   var tableDriveApi = null; // preenchida pela cena 3D (aquisição dirigida pela mesa)
   var consoleUiApi = null;  // preenchida pelo console guiado (modo/etapa atuais)
+  var mprApi = null;        // preenchida pelo viewer (reformatações do volume p/ a aba MPR)
 
   function initPatients() {
     var fPront = document.getElementById("pac-prontuario");
@@ -3030,6 +3031,18 @@
       setPlane(b.getAttribute("data-plane"));
     });
 
+    // API para a aba MPR do celular: expõe o volume reconstruído e gera as
+    // reformatações (coronal/sagital) sob demanda, reaproveitando buildReformat.
+    mprApi = {
+      hasVolume: function () { return !!vol; },
+      count: function (pl) {
+        if (pl === "coronal") return vol ? vol.H : 0;
+        if (pl === "sagital") return vol ? vol.W : 0;
+        return manifest ? manifest.cortes : 0;
+      },
+      reformat: function (pl, idx) { return buildReformat(pl, idx); }
+    };
+
     // Iniciar é contextual: em idle adquire o topograma; em plan (com a
     // caixa válida — senão fica travado) inicia a aquisição do volume.
     // Confirmação pré-aquisição: resumo do exame + checklist de segurança
@@ -3277,8 +3290,11 @@
     function pokeResize() { window.dispatchEvent(new Event("resize")); }
 
     function setView(v) {
+      // Só é chamada para "3d"/"aq" (botões Sala/Exame); as telas Pac/Prot e
+      // MPR são geridas pelo controlador de abas (mobile-tabs.js). Limpa todas
+      // as classes de view para não deixar resíduo ao trocar de aba.
       var is3d = v !== "aq";
-      body.classList.remove("mob-proto", "mob-pac");
+      body.classList.remove("mob-pacproto", "mob-mpr", "mob-proto", "mob-pac");
       body.classList.toggle("mob-3d", is3d);
       body.classList.toggle("mob-aq", !is3d);
       if (bPos) bPos.classList.toggle("is-active", is3d);
@@ -3789,6 +3805,70 @@
     update();
   }
 
+  // =================================================================
+  // ABA MPR (celular) — reformatações coronal/sagital em tela própria
+  // Lê o volume reconstruído via mprApi (exposto pelo viewer). Atualiza ao
+  // entrar na aba e quando um exame é reconstruído (evento ct:phase). Sem
+  // volume, mostra um aviso. No desktop a tela fica oculta (as reformatações
+  // vivem no seletor de plano do quadrante de Volumes).
+  // =================================================================
+  function initMprTab() {
+    var pane = document.getElementById("pane-mpr");
+    if (!pane) return;
+    var empty = document.getElementById("mpr-empty");
+    var conf = {
+      coronal: { view: "mpr-coronal-view", img: "mpr-coronal-img", slider: "mpr-coronal-slider", counter: "mpr-coronal-counter", label: "Coronal" },
+      sagital: { view: "mpr-sagital-view", img: "mpr-sagital-img", slider: "mpr-sagital-slider", counter: "mpr-sagital-counter", label: "Sagital" }
+    };
+    function el(id) { return document.getElementById(id); }
+    function renderOne(pl) {
+      var c = conf[pl];
+      var img = el(c.img), slider = el(c.slider), counter = el(c.counter);
+      if (!img || !mprApi) return;
+      var n = mprApi.count(pl);
+      if (!n) return;
+      var idx = Math.max(0, Math.min(n - 1, parseInt(slider.value, 10) || 0));
+      var url = mprApi.reformat(pl, idx);
+      if (url) img.src = url;
+      slider.max = n - 1; slider.value = idx;
+      counter.textContent = c.label + " " + (idx + 1) + " / " + n;
+    }
+    function refresh() {
+      var has = !!(mprApi && mprApi.hasVolume && mprApi.hasVolume());
+      if (empty) empty.hidden = has;
+      ["coronal", "sagital"].forEach(function (pl) {
+        var c = conf[pl];
+        var v = el(c.view);
+        if (v) v.hidden = !has;
+        if (has) {
+          var slider = el(c.slider);
+          // Ao surgir um volume novo, começa no corte CENTRAL (a borda é
+          // quase preta). Depois respeita a navegação do usuário.
+          if (slider && !c._init) {
+            slider.max = mprApi.count(pl) - 1;
+            slider.value = Math.floor(mprApi.count(pl) / 2);
+            c._init = true;
+          }
+          renderOne(pl);
+        } else {
+          c._init = false; // volume descartado → recentraliza no próximo
+        }
+      });
+    }
+    ["coronal", "sagital"].forEach(function (pl) {
+      var slider = el(conf[pl].slider);
+      if (slider) slider.addEventListener("input", function () { renderOne(pl); });
+    });
+    // Reconstrução concluída (ou reiniciada) reavalia a tela.
+    document.addEventListener("ct:phase", function () { refresh(); });
+    // Abrir a aba MPR reavalia (o volume pode ter mudado).
+    var mo = new MutationObserver(function () {
+      if (document.body.classList.contains("mob-mpr")) refresh();
+    });
+    mo.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    refresh();
+  }
+
   function main() {
     initTheme();
     bootstrap();
@@ -3802,6 +3882,7 @@
     initAcqPip();
     initAcqQuadrants();
     initMobileExamCommands();
+    initMprTab();
   }
 
   if (document.readyState === "loading") {

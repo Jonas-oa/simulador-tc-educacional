@@ -754,6 +754,30 @@ body {
 .ws-plane__btn:hover { color: var(--text-primary); }
 .ws-plane__btn.is-active { background: var(--accent-cyan); color: #04222b; font-weight: 600; }
 .ws-plane[hidden] { display: none !important; }
+/* No celular, o seletor de plano sai do quadrante de Volumes (evita
+   sobreposição); coronal/sagital passam a viver na aba MPR dedicada. */
+body.is-mobile .ws-plane { display: none !important; }
+
+/* =====================================================================
+   MPR — tela dedicada (celular) das reformatações coronal/sagital.
+   Oculta no desktop (lá as reformatações ficam no seletor de plano do
+   quadrante de Volumes). Só aparece na aba MPR do celular.
+   ===================================================================== */
+#pane-mpr { display: none; }
+.mpr-body { display: flex; flex-direction: column; gap: 14px; }
+.mpr-empty { color: var(--text-muted); font-size: 0.82rem; line-height: 1.5; }
+.mpr-empty[hidden] { display: none !important; }
+.mpr-view {
+  display: flex; flex-direction: column; gap: 6px;
+  background: #000; border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); padding: 6px;
+}
+.mpr-view[hidden] { display: none !important; }
+.mpr-view__head { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-cyan); }
+.mpr-view__imgwrap { display: flex; align-items: center; justify-content: center; background: #000; min-height: 150px; }
+.mpr-view__img { max-width: 100%; max-height: 44vh; object-fit: contain; }
+.mpr-view__ctrl { display: flex; align-items: center; gap: 10px; }
+.mpr-view__ctrl input[type="range"] { flex: 1; min-width: 0; }
 
 /* =====================================================================
    PAINEL DE 4 QUADRANTES (dashboard) + DIVISÓRIAS ARRASTÁVEIS
@@ -930,11 +954,9 @@ body.is-mobile.mob-3d #pane-sim .console .panel {
   padding: 10px; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
 }
 
-/* --- TELA "AQUISIÇÃO": workstation empilhada (cadastro > protocolo > exame) --- */
-body.is-mobile.mob-aq #pane-sim { display: none; }
-body.is-mobile.mob-aq #pane-pac { display: flex; order: 1; }
-body.is-mobile.mob-aq #pane-proto { display: flex; order: 2; }
-body.is-mobile.mob-aq #pane-acq { display: flex; order: 3; }
+/* --- TELA "EXAME": 4 quadrantes (pane-acq preenche a tela) ---
+   (o show/hide dos panes por aba é consolidado em mobile-tabs.css) --- */
+body.is-mobile.mob-aq #pane-acq { order: 3; }
 body.is-mobile.mob-aq .dash-pane { flex: 0 0 auto; overflow: visible; }
 body.is-mobile.mob-aq .dash-pane__body { overflow: visible; }
 

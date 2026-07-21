@@ -79,35 +79,33 @@ body.is-mobile .dash-pane {
   flex: 1 1 auto;
 }
 
-body.is-mobile.mob-3d #pane-sim,
-body.is-mobile.mob-aq #pane-acq,
-body.is-mobile.mob-proto #pane-proto,
-body.is-mobile.mob-pac #pane-pac {
-  display: flex;
-}
-
-body.is-mobile.mob-aq #pane-sim,
-body.is-mobile.mob-aq #pane-proto,
-body.is-mobile.mob-aq #pane-pac,
-body.is-mobile.mob-proto #pane-sim,
-body.is-mobile.mob-proto #pane-acq,
-body.is-mobile.mob-proto #pane-pac,
-body.is-mobile.mob-pac #pane-sim,
-body.is-mobile.mob-pac #pane-acq,
-body.is-mobile.mob-pac #pane-proto {
+/* --- Mobile: só o(s) pane(s) da aba ativa aparecem ---
+   Abas: Sala (3d) · Paciente & Protocolo (pacproto) · Exame (aq) · MPR (mpr).
+   Base esconde todos; cada view mostra o(s) seu(s). */
+body.is-mobile #pane-sim,
+body.is-mobile #pane-acq,
+body.is-mobile #pane-pac,
+body.is-mobile #pane-proto,
+body.is-mobile #pane-mpr {
   display: none;
 }
+body.is-mobile.mob-aq #pane-acq { display: flex; }
+body.is-mobile.mob-pacproto #pane-pac,
+body.is-mobile.mob-pacproto #pane-proto { display: flex; }
+body.is-mobile.mob-mpr #pane-mpr { display: flex; }
 
+/* Fundo/scroll comuns às telas de conteúdo (a Sala 3D tem tratamento próprio) */
 body.is-mobile.mob-aq #pane-acq,
-body.is-mobile.mob-proto #pane-proto,
-body.is-mobile.mob-pac #pane-pac {
+body.is-mobile.mob-pacproto #pane-pac,
+body.is-mobile.mob-pacproto #pane-proto,
+body.is-mobile.mob-mpr #pane-mpr {
   overflow: hidden;
   background: var(--bg-void);
 }
 
 body.is-mobile.mob-aq .dash-pane__head,
-body.is-mobile.mob-proto .dash-pane__head,
-body.is-mobile.mob-pac .dash-pane__head {
+body.is-mobile.mob-pacproto .dash-pane__head,
+body.is-mobile.mob-mpr .dash-pane__head {
   position: sticky;
   top: 0;
   z-index: 5;
@@ -115,14 +113,14 @@ body.is-mobile.mob-pac .dash-pane__head {
 }
 
 body.is-mobile.mob-aq .dash-pane__title,
-body.is-mobile.mob-proto .dash-pane__title,
-body.is-mobile.mob-pac .dash-pane__title {
+body.is-mobile.mob-pacproto .dash-pane__title,
+body.is-mobile.mob-mpr .dash-pane__title {
   font-size: 0.88rem;
 }
 
 body.is-mobile.mob-aq .dash-pane__body,
-body.is-mobile.mob-proto .dash-pane__body,
-body.is-mobile.mob-pac .dash-pane__body {
+body.is-mobile.mob-pacproto .dash-pane__body,
+body.is-mobile.mob-mpr .dash-pane__body {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -133,38 +131,39 @@ body.is-mobile.mob-aq .ws-card {
   padding: 14px;
 }
 
-body.is-mobile.mob-proto .proto2 {
+/* --- Paciente & Protocolo juntos (como no PC) --- */
+/* Retrato: empilhados, cada um com sua rolagem, dividindo a altura. */
+body.is-mobile.mob-pacproto #pane-pac,
+body.is-mobile.mob-pacproto #pane-proto {
+  height: auto;
+  flex: 1 1 0;
+  min-height: 0;
+}
+body.is-mobile.mob-pacproto .proto2 {
   grid-template-columns: 1fr;
   justify-items: stretch;
 }
-
-body.is-mobile.mob-proto .proto2__model {
+body.is-mobile.mob-pacproto .proto2__model {
   flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 18px;
 }
-
-body.is-mobile.mob-proto .bodymap {
+body.is-mobile.mob-pacproto .bodymap {
   width: min(110px, 32vw);
 }
-
-body.is-mobile.mob-proto .bodymap__chips {
+body.is-mobile.mob-pacproto .bodymap__chips {
   flex-direction: column;
 }
-
-body.is-mobile.mob-pac .pac-form {
+body.is-mobile.mob-pacproto .pac-form {
   gap: 12px;
 }
-
-body.is-mobile.mob-pac .ws-input,
-body.is-mobile.mob-proto .ws-input {
+body.is-mobile.mob-pacproto .ws-input {
   min-height: 43px;
   font-size: 0.92rem;
 }
-
-body.is-mobile.mob-pac #pac-add,
-body.is-mobile.mob-proto .ws-btn {
+body.is-mobile.mob-pacproto #pac-add,
+body.is-mobile.mob-pacproto .ws-btn {
   min-height: 43px;
 }
 
@@ -477,5 +476,16 @@ body.is-mobile.mob-aq .acq-quad--topo .ws-topo-readout {
      O banner do topo já traz posição/velocidade/status. */
   body.is-mobile.mob-aq .acq-adj__3d .viewport__overlay,
   body.is-mobile.mob-aq .acq-adj__3d .acq3d__tag { display: none !important; }
+
+  /* Paciente & Protocolo lado a lado (como no PC): cadastro à esquerda,
+     protocolo à direita. Em retrato ficam empilhados (regra fora daqui). */
+  body.is-mobile.mob-pacproto .dashboard { flex-direction: row; }
+  body.is-mobile.mob-pacproto #pane-pac { flex: 0 0 clamp(280px, 38%, 420px); height: auto; }
+  body.is-mobile.mob-pacproto #pane-proto { flex: 1 1 auto; height: auto; }
+
+  /* MPR: coronal e sagital lado a lado, aproveitando a largura. */
+  body.is-mobile.mob-mpr .mpr-body { flex-direction: row; align-items: stretch; }
+  body.is-mobile.mob-mpr .mpr-view { flex: 1 1 0; min-width: 0; }
+  body.is-mobile.mob-mpr .mpr-view__img { max-height: 62vh; }
 }
 
