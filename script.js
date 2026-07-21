@@ -2611,7 +2611,27 @@
       }
       rows.push("<strong>Posicionamento no isocentro:</strong> " + isoTxt);
       if (!isNaN(dlp)) {
-        rows.push("<strong>Dose (didática):</strong> DLP ≈ CTDIvol " + dose + " mGy × " + (scanLen / 10).toFixed(1) + " cm = <strong>" + dlp.toFixed(0) + " mGy·cm</strong>");
+        // CTDIvol de crânio é referido ao fantoma de CABEÇA (PMMA 16 cm),
+        // distinto do fantoma de corpo (32 cm). Dose efetiva didática:
+        // E ≈ DLP × k, com k de cabeça do adulto ≈ 0,0021 mSv/(mGy·cm)
+        // (fatores de ICRP/EUR — apenas para ordem de grandeza).
+        var K_HEAD = 0.0021;
+        var eff = dlp * K_HEAD; // mSv
+        rows.push("<strong>Dose (didática):</strong> CTDIvol " + dose +
+          " mGy <small>(fantoma de cabeça 16 cm)</small> × " + (scanLen / 10).toFixed(1) +
+          " cm → DLP ≈ <strong>" + dlp.toFixed(0) + " mGy·cm</strong>");
+        rows.push("<strong>Dose efetiva (estimada):</strong> E ≈ DLP × k(cabeça " +
+          K_HEAD.toFixed(4) + ") ≈ <strong>" + eff.toFixed(2) + " mSv</strong>");
+        // DRL didático de referência para crânio adulto (~1000 mGy·cm).
+        var DRL_HEAD = 1000;
+        if (dlp > DRL_HEAD * 1.2) {
+          rows.push('<span class="is-bad">DLP acima do nível de referência didático de crânio (~' + DRL_HEAD + ' mGy·cm) — revise mAs/faixa.</span>');
+        }
+      }
+      // Alerta de pitch: no crânio helicoidal usa-se pitch < 1 para conter
+      // ruído/dose; pitch > 1 é atípico. No sequencial o pitch não se aplica.
+      if (pp.modo !== "sequencial" && pp.pitch > 1.0) {
+        rows.push('<span class="is-bad">Pitch ' + pp.pitch + ' > 1 no crânio: aumenta o ruído; o usual é pitch < 1 (ou axial sequencial).</span>');
       }
       rows.push("<em>Valores didáticos para treinamento de operação — sem validade clínica ou dosimétrica.</em>");
       bodyEl.innerHTML = rows.join("<br>");
