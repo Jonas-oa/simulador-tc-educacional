@@ -10,8 +10,8 @@
   <meta name="theme-color" content="#0a0e14" />
   <link rel="icon" href="icons/icon-192.png" />
 
-  <link rel="stylesheet" href="css/style.css?v=20260721d" />
-  <link rel="stylesheet" href="css/mobile-tabs.css?v=20260721d" />
+  <link rel="stylesheet" href="css/style.css?v=20260721e" />
+  <link rel="stylesheet" href="css/mobile-tabs.css?v=20260721e" />
 </head>
 <body data-theme="dark">
 
@@ -61,14 +61,14 @@
     <button class="mobile-switch__btn is-active" id="mob-view-pos" type="button" data-mobile-view="3d" aria-current="page">
       <span class="mobile-switch__icon" aria-hidden="true">◉</span><span>Sala</span>
     </button>
-    <button class="mobile-switch__btn" id="mob-view-pac" type="button" data-mobile-view="pac">
-      <span class="mobile-switch__icon" aria-hidden="true">♙</span><span>Paciente</span>
-    </button>
-    <button class="mobile-switch__btn" id="mob-view-proto" type="button" data-mobile-view="proto">
-      <span class="mobile-switch__icon" aria-hidden="true">☷</span><span>Protocolo</span>
+    <button class="mobile-switch__btn" id="mob-view-pac" type="button" data-mobile-view="pacproto">
+      <span class="mobile-switch__icon" aria-hidden="true">♙</span><span>Pac/Prot</span>
     </button>
     <button class="mobile-switch__btn" id="mob-view-cmd" type="button" data-mobile-view="aq">
       <span class="mobile-switch__icon" aria-hidden="true">▣</span><span>Exame</span>
+    </button>
+    <button class="mobile-switch__btn" id="mob-view-mpr" type="button" data-mobile-view="mpr">
+      <span class="mobile-switch__icon" aria-hidden="true">▤</span><span>MPR</span>
     </button>
     <button class="mobile-switch__exit" id="mob-exit" type="button" aria-label="Sair do modo celular" title="Sair do modo celular">✕</button>
   </nav>
@@ -328,6 +328,32 @@
         </div>
       </div>
     </section>
+
+    <!-- MPR — reformatações coronal/sagital (tela exclusiva do celular). No
+         desktop fica oculta: lá as reformatações vivem no seletor de plano
+         do quadrante de Volumes. -->
+    <section class="dash-pane dash-pane--mpr" id="pane-mpr" aria-label="Reformatações MPR">
+      <header class="dash-pane__head"><h2 class="dash-pane__title">Reformatações — MPR</h2></header>
+      <div class="dash-pane__body mpr-body" id="mpr-body">
+        <p class="mpr-empty" id="mpr-empty">Adquira e reconstrua um exame na aba <strong>Exame</strong> para ver as reformatações coronal e sagital do volume.</p>
+        <div class="mpr-view" id="mpr-coronal-view" hidden>
+          <div class="mpr-view__head">Coronal</div>
+          <div class="mpr-view__imgwrap"><img id="mpr-coronal-img" class="mpr-view__img" alt="Reformatação coronal"></div>
+          <div class="mpr-view__ctrl">
+            <input type="range" id="mpr-coronal-slider" min="0" max="0" value="0" step="1" aria-label="Navegar cortes coronais">
+            <span class="ws-slice-counter" id="mpr-coronal-counter">—</span>
+          </div>
+        </div>
+        <div class="mpr-view" id="mpr-sagital-view" hidden>
+          <div class="mpr-view__head">Sagital</div>
+          <div class="mpr-view__imgwrap"><img id="mpr-sagital-img" class="mpr-view__img" alt="Reformatação sagital"></div>
+          <div class="mpr-view__ctrl">
+            <input type="range" id="mpr-sagital-slider" min="0" max="0" value="0" step="1" aria-label="Navegar cortes sagitais">
+            <span class="ws-slice-counter" id="mpr-sagital-counter">—</span>
+          </div>
+        </div>
+      </div>
+    </section>
     </div>
   </main>
 
@@ -376,7 +402,7 @@
   </script>
 
   <script src="js/vendor/three.min.js"></script>
-  <script src="script.js?v=20260721d"></script>
-  <script src="js/mobile-tabs.js?v=20260721d"></script>
+  <script src="script.js?v=20260721e"></script>
+  <script src="js/mobile-tabs.js?v=20260721e"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VIEW_CLASSES = ["mob-3d", "mob-aq", "mob-proto", "mob-pac"];
+  var VIEW_CLASSES = ["mob-3d", "mob-aq", "mob-pacproto", "mob-mpr"];
   var STORAGE_VIEW = "simuladorTC.mobileView";
   var STORAGE_EXIT = "simuladorTC.mobileExit";
 
@@ -19,7 +19,9 @@
     if (!body || !mobileToggle || !mobileSwitch || buttons.length !== 4) return;
 
     function normalizeView(view) {
-      return ["3d", "aq", "proto", "pac"].indexOf(view) >= 0 ? view : "3d";
+      // Migração: as telas "pac" e "proto" foram fundidas em "pacproto".
+      if (view === "pac" || view === "proto") view = "pacproto";
+      return ["3d", "aq", "pacproto", "mpr"].indexOf(view) >= 0 ? view : "3d";
     }
 
     function setView(view, save) {
