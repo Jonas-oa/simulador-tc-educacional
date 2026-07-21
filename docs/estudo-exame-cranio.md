@@ -126,37 +126,45 @@ dose estimada) antes de disparar, e checklist de posicionamento
 
 ## 4. Plano por etapas (proposto)
 
+> **Status (implementado nesta rodada):** ✅ A, C, D, E, F já entregues e
+> verificados no navegador (headless). ⏳ B (janela WL/WW) e G (scout dupla)
+> seguem pendentes — dependem das decisões de dados/assets do §5.
+
 Cada etapa é autocontida e commitável; respeita "sem bundler, script
 clássico, edições cirúrgicas".
 
-- **Etapa A — Protocolo estruturado do crânio (base de tudo).**
-  Campos numéricos com unidade + validação; novo objeto de protocolo com
-  `modo`, `tilt`, `rotacaoS`, `faixaPadrao`. `protocolParams` passa a ler
-  números; exibição em texto preservada. Migração dos protocolos salvos.
-  *Sem novos assets.* Destrava B–G.
+- **✅ Etapa A — Protocolo estruturado do crânio (base de tudo).**
+  Campos `modo` (sequencial/helicoidal), `tilt` (°) e `rotacao` (s) no
+  editor; `protocolParams` passa a expor `modo`/`tiltDeg`/`rotacaoS` e a
+  física usa `rotacaoS` (antes fixo). Migração dos protocolos salvos; seed
+  do crânio → sequencial, pitch 0,55. *Sem novos assets.*
 
-- **Etapa B — Janela WL/WW + série osso/encéfalo.**
+- **⏳ Etapa B — Janela WL/WW + série osso/encéfalo.**
   Depende da **decisão de dados** (§5-A). Entrega: controle de janela
   (presets encéfalo/osso/AVC + arraste WL/WW) e alternância de série no
-  viewer. Maior salto de realismo.
+  viewer. Maior salto de realismo. **Pendente.**
 
-- **Etapa C — Modo sequencial + tilt do gantry.**
-  Mesa step-and-shoot no 3D; gantry inclina pelo `tilt`; linhas de corte
-  anguladas na scout. *Sem novos assets* (usa o volume atual).
+- **✅ Etapa C — Modo sequencial + tilt do gantry.**
+  Gantry 3D inclina pelo `tilt` (rotação em torno do isocentro, com o
+  isocentro fixo); linhas de corte anguladas na scout; aquisição axial
+  **sequencial** (step-and-shoot: adquire com a mesa parada, avança entre
+  passos). *Sem novos assets.*
 
-- **Etapa D — Reconstrução + MPR coronal/sagital.**
-  Passo "Reconstruindo…"; reformatações geradas da pilha axial via canvas.
-  *Sem novos assets.*
+- **✅ Etapa D — Reconstrução + MPR coronal/sagital.**
+  Passo "Reconstruindo…" monta o volume da pilha axial (canvas); seletor
+  Axial/Coronal/Sagital com reformatações geradas no navegador. *Sem assets.*
 
-- **Etapa E — Confirmação de aquisição + checklist gated.**
-  Diálogo "Confirmar" com resumo/dose; passos do painel viram interativos.
-  *Sem novos assets.*
+- **✅ Etapa E — Confirmação de aquisição + checklist.**
+  Modal "Confirmar aquisição" (resumo + checklist de segurança) antes de
+  irradiar; o volume só dispara no "Confirmar". *Sem novos assets.*
 
-- **Etapa F — Dose realista do crânio.**
-  Fantoma 16 cm, DLP→dose efetiva (k), alerta de pitch. *Sem assets.*
+- **✅ Etapa F — Dose realista do crânio.**
+  CTDIvol no fantoma de cabeça 16 cm; DLP→dose efetiva (k≈0,0021); alertas
+  de DLP acima do DRL didático e de pitch>1. *Sem assets.*
 
-- **Etapa G — Scout dupla LAT+AP, mesmo paciente.**
+- **⏳ Etapa G — Scout dupla LAT+AP, mesmo paciente.**
   Depende de assets novos (§5-B). Fecha a coerência geométrica scout↔volume.
+  **Pendente.**
 
 Sugestão de ordem: **A → C → E → F** (tudo sem assets, alto ganho de
 fluxo) e, em paralelo às decisões de dados, **B → D → G**.
