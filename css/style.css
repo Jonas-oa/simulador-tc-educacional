@@ -748,6 +748,12 @@ body {
 .ws-viewer-ctrl { display: flex; align-items: center; gap: 10px; }
 .ws-viewer-ctrl input[type="range"] { flex: 1; min-width: 0; }
 .ws-slice-counter { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-secondary); min-width: 84px; text-align: right; }
+/* Seletor de plano de reformatação (Axial/Coronal/Sagital) — MPR */
+.ws-plane { display: inline-flex; gap: 2px; margin-bottom: 6px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-strong); border-radius: 999px; padding: 2px; }
+.ws-plane__btn { border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.72rem; padding: 3px 12px; border-radius: 999px; cursor: pointer; }
+.ws-plane__btn:hover { color: var(--text-primary); }
+.ws-plane__btn.is-active { background: var(--accent-cyan); color: #04222b; font-weight: 600; }
+.ws-plane[hidden] { display: none !important; }
 
 /* =====================================================================
    PAINEL DE 4 QUADRANTES (dashboard) + DIVISÓRIAS ARRASTÁVEIS

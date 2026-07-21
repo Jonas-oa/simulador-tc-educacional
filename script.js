@@ -2220,6 +2220,10 @@
     var MIN_GAP = 6; // % mínimo entre linhas opostas
     var lastSlice = 0; // último corte pintado na aquisição (p/ review)
     var lastAcq = null; // parâmetros da última aquisição (p/ relatório)
+    // MPR: plano de exibição atual e volume reconstruído da pilha axial.
+    var plane = "axial";
+    var vol = null; // { W, H, Z, slices:[Uint8Array], spX, spY, spZ }
+    var mprCache = {}; // dataURL por plano+índice (evita reconstruir a cada tick)
 
     // Anuncia a fase do exame (idle/topoAcq/plan/moving/volAcq/review)
     // para módulos desacoplados — ex.: o PiP da sala 3D no modo console.
@@ -2486,6 +2490,9 @@
       if (stopBtn) stopBtn.disabled = true;
       counter.textContent = "—";
       topoImg.style.clipPath = "";
+      // Descarta o volume/reformatações e volta o viewer ao plano axial.
+      plane = "axial"; vol = null; mprCache = {};
+      if (planeEl) planeEl.hidden = true;
     }
 
     // Topograma com física real: tubo ESTACIONÁRIO, a MESA translada o
@@ -2741,7 +2748,7 @@
           speedMmS: speed,
           rotTimeS: pp.rotacaoS, // liga o arco de varredura girando no bore
           onProgress: function (k) { paintProg(k); },
-          onDone: function () { soundStop(); toReview(); },
+          onDone: function () { soundStop(); toRecon(); },
           onAbort: function (motivo) {
             if (phase !== "volAcq") return;
             soundStop(); toPlan(true);
@@ -2762,7 +2769,7 @@
         if (i >= total) {
           clearInterval(volTimer); volTimer = null;
           soundStop();
-          toReview();
+          toRecon();
           return;
         }
         paintProg(i / (total - 1));
@@ -2813,7 +2820,7 @@
         }
         function moveOrFinish() {
           if (phase !== "volAcq") return;
-          if (s >= steps - 1) { toReview(); return; }
+          if (s >= steps - 1) { toRecon(); return; }
           soundStart("topo", 0); // zumbido de mesa em movimento (sem feixe)
           var res = tableDriveApi.start({
             distanceMm: stepLenMm,
@@ -2840,6 +2847,146 @@
       }
     }
 
+    // ---- RECONSTRUÇÃO + MPR (reformatações coronal/sagital) ----
+    // Após a aquisição, monta um volume a partir da pilha axial (desenhando
+    // cada PNG num canvas offscreen e lendo os pixels), permitindo cortar o
+    // volume em coronal e sagital no navegador — sem novos assets. Se algo
+    // falhar (canvas "tainted", memória), segue só com o axial.
+    var planeEl = document.getElementById("ws-plane");
+    function spacing() {
+      var sp = (manifest && manifest.espacamento_mm) || {};
+      return { x: +sp.x || 0.4297, y: +sp.y || 0.4297, z: +sp.z || 2.528 };
+    }
+    function buildVolume(done) {
+      try {
+        var Z = manifest.cortes;
+        var W = 256; // subamostragem para caber em memória e ser fluido
+        var scale = W / (manifest.largura || 512);
+        var H = Math.max(1, Math.round((manifest.altura || 507) * scale));
+        var cvs = document.createElement("canvas"); cvs.width = W; cvs.height = H;
+        var cx = cvs.getContext("2d", { willReadFrequently: true });
+        var slices = new Array(Z);
+        var loadedN = 0, failed = false;
+        for (var z = 0; z < Z; z++) {
+          (function (z) {
+            var im = new Image();
+            im.onload = function () {
+              try {
+                cx.drawImage(im, 0, 0, W, H);
+                var d = cx.getImageData(0, 0, W, H).data;
+                var g = new Uint8Array(W * H);
+                for (var p = 0, q = 0; p < d.length; p += 4, q++) g[q] = d[p];
+                slices[z] = g;
+              } catch (e) { failed = true; }
+              if (++loadedN === Z) finish();
+            };
+            im.onerror = function () { failed = true; if (++loadedN === Z) finish(); };
+            im.src = srcFor(z);
+          })(z);
+        }
+        function finish() {
+          if (failed) { vol = null; done(false); return; }
+          var sp = spacing();
+          vol = { W: W, H: H, Z: Z, slices: slices, spX: sp.x, spY: sp.y, spZ: sp.z };
+          done(true);
+        }
+      } catch (e) { vol = null; done(false); }
+    }
+    function buildReformat(pl, idx) {
+      if (!vol) return null;
+      var key = pl + ":" + idx;
+      if (mprCache[key]) return mprCache[key];
+      var W = vol.W, H = vol.H, Z = vol.Z;
+      var Xmm = (manifest.largura || 512) * vol.spX;
+      var Ymm = (manifest.altura || 507) * vol.spY;
+      var Zmm = Z * vol.spZ;
+      var raw = document.createElement("canvas"), out = document.createElement("canvas");
+      var url;
+      if (pl === "coronal") {
+        raw.width = W; raw.height = Z;
+        var rc = raw.getContext("2d");
+        var id = rc.createImageData(W, Z);
+        for (var z = 0; z < Z; z++) {
+          var row = Z - 1 - z; // z=0 (base) fica embaixo; vértice no topo
+          var s = vol.slices[z]; if (!s) continue;
+          for (var x = 0; x < W; x++) {
+            var v = s[idx * W + x], o = (row * W + x) * 4;
+            id.data[o] = id.data[o + 1] = id.data[o + 2] = v; id.data[o + 3] = 255;
+          }
+        }
+        rc.putImageData(id, 0, 0);
+        out.width = W; out.height = Math.max(1, Math.round(W * Zmm / Xmm));
+        var oc = out.getContext("2d"); oc.imageSmoothingEnabled = true;
+        oc.drawImage(raw, 0, 0, W, Z, 0, 0, out.width, out.height);
+        url = out.toDataURL();
+      } else { // sagital
+        raw.width = Z; raw.height = H;
+        var rc2 = raw.getContext("2d");
+        var id2 = rc2.createImageData(Z, H);
+        for (var y = 0; y < H; y++) {
+          for (var z2 = 0; z2 < Z; z2++) {
+            var col = Z - 1 - z2;
+            var s2 = vol.slices[z2]; if (!s2) continue;
+            var v2 = s2[y * W + idx], o2 = (y * Z + col) * 4;
+            id2.data[o2] = id2.data[o2 + 1] = id2.data[o2 + 2] = v2; id2.data[o2 + 3] = 255;
+          }
+        }
+        rc2.putImageData(id2, 0, 0);
+        out.width = Math.max(1, Math.round(H * Zmm / Ymm)); out.height = H;
+        var oc2 = out.getContext("2d"); oc2.imageSmoothingEnabled = true;
+        oc2.drawImage(raw, 0, 0, Z, H, 0, 0, out.width, out.height);
+        url = out.toDataURL();
+      }
+      mprCache[key] = url;
+      return url;
+    }
+    function planeMax() {
+      if (plane === "coronal") return (vol ? vol.H : 1) - 1;
+      if (plane === "sagital") return (vol ? vol.W : 1) - 1;
+      return (manifest ? manifest.cortes : 1) - 1;
+    }
+    function showReformat(i) {
+      if (!vol) { show(i); return; }
+      var maxI = planeMax();
+      i = Math.max(0, Math.min(maxI, i | 0));
+      var url = buildReformat(plane, i);
+      if (url) img.src = url;
+      slider.value = i;
+      counter.textContent = (plane === "coronal" ? "Coronal " : "Sagital ") + (i + 1) + " / " + (maxI + 1);
+    }
+    function render(i) {
+      if (plane === "axial") show(i);
+      else showReformat(i);
+    }
+    function setPlane(pl) {
+      if (pl !== "axial" && !vol) return; // sem volume, só axial
+      plane = pl;
+      if (planeEl) {
+        Array.prototype.forEach.call(planeEl.querySelectorAll(".ws-plane__btn"), function (b) {
+          b.classList.toggle("is-active", b.getAttribute("data-plane") === pl);
+        });
+      }
+      var maxI = planeMax();
+      slider.min = 0; slider.max = maxI;
+      var mid = Math.round(maxI / 2);
+      render(mid);
+    }
+
+    // Passo de RECONSTRUÇÃO entre a aquisição e a revisão. Monta o volume
+    // (habilita coronal/sagital) exibindo "Reconstruindo…"; ao terminar,
+    // segue para a revisão. Falha ao montar → revisão só com axial.
+    function toRecon() {
+      phase = "recon";
+      if (ctrl) ctrl.classList.remove("is-acquiring");
+      announcePhase("volAcq"); // painel mantém "Volume" ativo durante a recon
+      mprCache = {};
+      slider.disabled = true;
+      startBtn.disabled = true; startBtn.textContent = "Reconstruindo…";
+      counter.textContent = "Reconstruindo volume…";
+      showMessage("Reconstruindo o volume (axial + reformatações coronal/sagital)…", "info");
+      buildVolume(function () { if (phase === "recon") toReview(); });
+    }
+
     function toReview() {
       phase = "review";
       if (ctrl) ctrl.classList.remove("is-acquiring");
@@ -2852,16 +2999,31 @@
       slider.disabled = false;
       startBtn.disabled = true; startBtn.textContent = "Exame adquirido";
       if (stopBtn) stopBtn.disabled = false;
+      // Seletor de plano só quando o volume reconstruiu (MPR disponível).
+      if (planeEl) planeEl.hidden = !vol;
+      plane = "axial";
+      if (planeEl) {
+        Array.prototype.forEach.call(planeEl.querySelectorAll(".ws-plane__btn"), function (b) {
+          b.classList.toggle("is-active", b.getAttribute("data-plane") === "axial");
+        });
+      }
+      slider.min = 0; slider.max = manifest.cortes - 1;
       show(lastSlice);
-      showMessage("Aquisição concluída (" + manifest.cortes + " cortes). Navegue e finalize com Stop.", "success");
+      showMessage("Aquisição concluída (" + manifest.cortes + " cortes)" +
+        (vol ? " — reformatações coronal/sagital disponíveis." : ".") + " Navegue e finalize com Stop.", "success");
     }
 
-    slider.addEventListener("input", function () { if (loaded) show(parseInt(slider.value, 10) || 0); });
+    slider.addEventListener("input", function () { if (loaded) render(parseInt(slider.value, 10) || 0); });
     box.addEventListener("wheel", function (e) {
       if (!loaded) return;
       e.preventDefault();
-      show((parseInt(slider.value, 10) || 0) + (e.deltaY > 0 ? 1 : -1));
+      render((parseInt(slider.value, 10) || 0) + (e.deltaY > 0 ? 1 : -1));
     }, { passive: false });
+    if (planeEl) planeEl.addEventListener("click", function (e) {
+      var b = e.target && e.target.closest ? e.target.closest(".ws-plane__btn") : null;
+      if (!b || !loaded) return;
+      setPlane(b.getAttribute("data-plane"));
+    });
 
     // Iniciar é contextual: em idle adquire o topograma; em plan (com a
     // caixa válida — senão fica travado) inicia a aquisição do volume.

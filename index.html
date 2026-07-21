@@ -209,6 +209,11 @@
               </div>
 
               <div class="ws-overlay ws-overlay--bottom">
+                <div class="ws-plane" id="ws-plane" hidden role="group" aria-label="Plano de reformatação">
+                  <button type="button" class="ws-plane__btn is-active" data-plane="axial">Axial</button>
+                  <button type="button" class="ws-plane__btn" data-plane="coronal">Coronal</button>
+                  <button type="button" class="ws-plane__btn" data-plane="sagital">Sagital</button>
+                </div>
                 <div class="ws-viewer-ctrl" id="ws-viewer-ctrl" hidden>
                   <input type="range" id="ws-slice-slider" min="0" max="0" value="0" step="1" aria-label="Navegar cortes">
                   <span class="ws-slice-counter" id="ws-slice-counter">—</span>
