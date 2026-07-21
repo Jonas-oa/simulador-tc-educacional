@@ -3062,8 +3062,8 @@
 
   // =================================================================
   // CONSOLE GUIADO (desktop) — fluxo por etapas como nos consoles reais.
-  // Uma etapa por vez em tela cheia (1 Sala → 2 Paciente → 3 Protocolo →
-  // 4 Exame), banner persistente do paciente e indicadores de pendência.
+  // Uma etapa por vez em tela cheia (1 Sala → 2 Paciente & Protocolo →
+  // 3 Exame), banner persistente do paciente e indicadores de pendência.
   // O modo painel (4 quadrantes) permanece disponível pelo botão ⊞.
   // Estado (modo + etapa) persistido em localStorage.
   // =================================================================
@@ -3075,13 +3075,15 @@
     if (!bar || !toggle) return;
 
     var KEY = "simuladorTC.console";
-    var STEPS = ["sim", "pac", "proto", "acq"];
+    var STEPS = ["sim", "pacproto", "acq"];
     var state = { on: true, step: "sim" }; // console é o padrão no desktop
     try {
       var saved = JSON.parse(localStorage.getItem(KEY) || "null");
       if (saved) {
         if (saved.on === false) state.on = false;
-        if (STEPS.indexOf(saved.step) >= 0) state.step = saved.step;
+        // Migração: as etapas "pac" e "proto" foram fundidas em "pacproto".
+        var savedStep = (saved.step === "pac" || saved.step === "proto") ? "pacproto" : saved.step;
+        if (STEPS.indexOf(savedStep) >= 0) state.step = savedStep;
       }
     } catch (e) { /* sem persistência */ }
     function persist() {
@@ -3109,8 +3111,7 @@
       var pac = (examSessionApi && examSessionApi.get) ? examSessionApi.get() : null;
       var prot = examProtocol ? examProtocol.data : null;
       var onTable = tableDriveApi && tableDriveApi.isPatientOnTable && tableDriveApi.isPatientOnTable();
-      setDot("pac", !pac);
-      setDot("proto", !prot);
+      setDot("pacproto", !(pac && prot));
       setDot("sim", !!(pac && tableDriveApi && !onTable));
       setDot("acq", !!(pac && prot && (!tableDriveApi || onTable)));
       var parts = [];
@@ -3162,7 +3163,7 @@
       persist();
       apply();
       showMessage(state.on
-        ? "Console guiado: uma etapa por vez (1 Sala → 2 Paciente → 3 Protocolo → 4 Exame)."
+        ? "Console guiado: uma etapa por vez (1 Sala → 2 Paciente & Protocolo → 3 Exame)."
         : "Modo painel: 4 quadrantes simultâneos com divisórias ajustáveis.", "info");
     });
 
