@@ -972,32 +972,81 @@ body.is-mobile.mob-aq .dash-pane__body { overflow: visible; }
 .ws-topo__box {
   position: absolute; inset: 0;
   /* Topograma HORIZONTAL (decúbito dorsal, vértice à direita):
-     faixa CC = linhas VERTICAIS (left/right); FOV A-P = HORIZONTAIS (top/bottom) */
+     faixa CC = limites VERTICAIS (left/right); FOV A-P = HORIZONTAIS (top/bottom) */
   --edge-top: 6%; --edge-bottom: 58%; --edge-left: 34%; --edge-right: 93%;
 }
+/* Caixa de planejamento (scan box) — como no console real do TC: um
+   RETÂNGULO delimitando o volume a varrer sobre o topograma, e não mais
+   quatro linhas cruzando a imagem inteira.
+     LARGURA da caixa = FAIXA / range (crânio-caudal, eixo da mesa)  → bordas cyan
+     ALTURA  da caixa = FOV A-P (ântero-posterior, no plano do corte) → bordas âmbar
+   O par de cores define visualmente o que é range e o que é FOV. */
 .ws-topo__rect {
-  position: absolute; pointer-events: none;
+  position: absolute; pointer-events: none; z-index: 1;
   top: var(--edge-top); bottom: calc(100% - var(--edge-bottom));
   left: var(--edge-left); right: calc(100% - var(--edge-right));
-  border: 1px dashed rgba(120, 200, 255, 0.55);
-  background: rgba(120, 200, 255, 0.06);
+  background: rgba(53, 197, 224, 0.07);
+  outline: 1px solid rgba(255, 255, 255, 0.14);
+  outline-offset: -1px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
+/* As "linhas" agora são as BORDAS da caixa: cada uma cobre só o lado
+   correspondente do retângulo (não mais a imagem inteira). */
 .ws-topo__line { position: absolute; touch-action: none; z-index: 2; }
-.ws-topo__line--h { left: 0; right: 0; height: 18px; margin-top: -9px; cursor: ns-resize; }
-.ws-topo__line--v { top: 0; bottom: 0; width: 18px; margin-left: -9px; cursor: ew-resize; }
-.ws-topo__line::before { content: ""; position: absolute; opacity: 0.92; }
+.ws-topo__line--h {
+  left: var(--edge-left); right: calc(100% - var(--edge-right));
+  height: 16px; margin-top: -8px; cursor: ns-resize; color: var(--accent-amber);
+}
+.ws-topo__line--v {
+  top: var(--edge-top); bottom: calc(100% - var(--edge-bottom));
+  width: 16px; margin-left: -8px; cursor: ew-resize; color: var(--accent-cyan);
+}
+.ws-topo__line::before { content: ""; position: absolute; opacity: 0.95; }
 .ws-topo__line--h::before { left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; }
 .ws-topo__line--v::before { top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; }
-.ws-topo__line--range::before { background: var(--accent-cyan); }
-.ws-topo__line--fov::before { background: var(--accent-amber); }
-/* Tilt do gantry: as linhas de faixa (planos de corte) aparecem anguladas
-   na scout lateral, girando pelo ângulo do protocolo. */
-.ws-topo__box.has-tilt .ws-topo__line--v::before { transform: rotate(var(--tilt, 0deg)); transform-origin: 50% 50%; }
+.ws-topo__line--range::before { background: var(--accent-cyan); box-shadow: 0 0 3px rgba(0, 0, 0, 0.7); }
+.ws-topo__line--fov::before { background: var(--accent-amber); box-shadow: 0 0 3px rgba(0, 0, 0, 0.7); }
+/* Alça central em cada borda — sinaliza que a caixa é ajustável (arrastar
+   para redimensionar a faixa ou o FOV). */
+.ws-topo__line::after {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 2px;
+  background: rgba(8, 16, 24, 0.92); border: 1.5px solid currentColor;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+}
+/* Rótulos que nomeiam cada eixo sobre a própria borda da caixa. */
+.ws-topo__axis {
+  position: absolute; z-index: 3; pointer-events: none;
+  font-size: 10px; font-weight: 700; line-height: 1;
+  letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
+  padding: 2px 5px; border-radius: 3px;
+  background: rgba(6, 14, 22, 0.78); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+.ws-topo__axis--range {          /* largura da caixa = faixa/range (CC) */
+  color: var(--accent-cyan);
+  left: calc((var(--edge-left) + var(--edge-right)) / 2);
+  top: var(--edge-top);
+  transform: translate(-50%, -50%);
+}
+.ws-topo__axis--fov {            /* altura da caixa = FOV (A-P) */
+  color: var(--accent-amber);
+  top: calc((var(--edge-top) + var(--edge-bottom)) / 2);
+  left: var(--edge-left);
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+/* Tilt do gantry: os planos de corte ficam angulados na scout lateral, então
+   a caixa inteira se inclina como um PARALELOGRAMO (bordas de faixa oblíquas),
+   como no equipamento real. Cisalha a caixa toda de uma vez (mantém os lados
+   conectados) e desfaz o cisalhamento só nos rótulos/alças, p/ legibilidade. */
+.ws-topo__box.has-tilt { transform: skewX(var(--tilt, 0deg)); transform-origin: 50% 50%; }
+.ws-topo__box.has-tilt .ws-topo__axis--range { transform: translate(-50%, -50%) skewX(calc(-1 * var(--tilt, 0deg))); }
+.ws-topo__box.has-tilt .ws-topo__axis--fov { transform: translate(-50%, -50%) rotate(-90deg) skewX(calc(-1 * var(--tilt, 0deg))); }
+.ws-topo__box.has-tilt .ws-topo__line::after { transform: skewX(calc(-1 * var(--tilt, 0deg))); }
 #ws-topo-top { top: var(--edge-top); }
 #ws-topo-bottom { top: var(--edge-bottom); }
 #ws-topo-left { left: var(--edge-left); }
 #ws-topo-right { left: var(--edge-right); }
-.ws-topo__box.is-invalid .ws-topo__rect { border-color: var(--accent-red); background: rgba(255, 80, 80, 0.08); }
+.ws-topo__box.is-invalid .ws-topo__rect { outline-color: var(--accent-red); background: rgba(255, 80, 80, 0.1); }
 
 .ws-topo-readout {
   margin: 6px 0 0; font-size: 0.78rem; line-height: 1.35;
