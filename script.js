@@ -1944,8 +1944,13 @@
     var zones = document.querySelectorAll("[data-region]");
     if (!listEl || !editor || !regionLabel) return;
 
-    var FIELDS = ["kv", "mas", "pitch", "direcao", "modo", "tilt", "rot", "colim", "thick", "kernel", "fov", "dose"];
-    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", direcao: "direcao", modo: "modo", tilt: "tilt", rot: "rotacao", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov", dose: "dose" };
+    var FIELDS = ["kv", "mas", "pitch", "scout", "direcao", "modo", "tilt", "rot", "colim", "thick", "kernel", "fov", "dose"];
+    var FIELD_KEYS = { kv: "kv", mas: "mas", pitch: "pitch", scout: "scout", direcao: "direcao", modo: "modo", tilt: "tilt", rot: "rotacao", colim: "colimacao", thick: "espessura", kernel: "kernel", fov: "fov", dose: "dose" };
+    // Orientação padrão do topograma por região: lateral em crânio/coluna
+    // (perfil), frontal (AP) na maioria dos demais exames.
+    function defaultScout(regiao) {
+      return (regiao === "Crânio" || regiao === "Coluna") ? "lateral" : "frontal";
+    }
     function inputEl(f) { return document.getElementById("ws-param-" + f); }
 
     var protocols = [];
@@ -1955,7 +1960,7 @@
     var memoryFallback = false;
 
     function blank(id, nome, regiao) {
-      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", direcao: "caudocranial", modo: "helicoidal", tilt: "", rotacao: "", colimacao: "", espessura: "", kernel: "", fov: "", dose: "", obs: "" };
+      return { id: id, nome: nome, regiao: regiao, kv: "", mas: "", pitch: "", scout: defaultScout(regiao), direcao: "caudocranial", modo: "helicoidal", tilt: "", rotacao: "", colimacao: "", espessura: "", kernel: "", fov: "", dose: "", obs: "" };
     }
 
     // Etapa D — valores DIDÁTICOS de referência (AAPM / DRLs) para TC de crânio.
@@ -1965,6 +1970,7 @@
         kv: "120",
         mas: "300",
         pitch: "0,55",
+        scout: "lateral",
         direcao: "caudocranial",
         modo: "sequencial",
         tilt: "0",
@@ -2026,6 +2032,7 @@
         }
         if (p.tilt === undefined) { p.tilt = (p.id === "cranio") ? "0" : ""; changed = true; }
         if (p.rotacao === undefined) { p.rotacao = (p.id === "cranio") ? "1,0" : ""; changed = true; }
+        if (p.scout === undefined || p.scout === "") { p.scout = defaultScout(p.regiao); changed = true; }
         if (changed) persist(p);
       });
     }
@@ -2064,6 +2071,8 @@
       if (dirEl && !dirEl.value) dirEl.value = "caudocranial"; // protocolos antigos sem o campo
       var modoEl = inputEl("modo");
       if (modoEl && !modoEl.value) modoEl.value = "helicoidal"; // idem
+      var scoutEl = inputEl("scout");
+      if (scoutEl && !scoutEl.value) scoutEl.value = defaultScout(p ? p.regiao : null); // idem
     }
     function setMode(m) {
       mode = m;
@@ -2209,15 +2218,31 @@
     var TOPO_SPEED_MMS = 100;// velocidade da mesa no scout (tubo estacionário)
     var ROT_S = 1.0;         // tempo de rotação do gantry (s/volta) no helicoidal
 
-    // Caixa de planejamento (%). Zonas-alvo recalibradas para o topograma
-    // HORIZONTAL correto (decúbito dorsal: face p/ CIMA, VÉRTICE à ESQUERDA,
-    // base à direita — rotação anti-horária do original, confirmada pela
-    // posição dos dentes/mandíbula). Faixa CC = linhas verticais
-    // (esquerda=vértice, direita=base); FOV A-P = horizontais.
-    // Didáticas — validação clínica do usuário.
-    var DEFAULT_BOX = { top: 42, bottom: 94, left: 7, right: 66 };
+    // Caixa de planejamento (%). A orientação do scout (protocolo) define
+    // qual eixo é a FAIXA (range crânio-caudal) e qual é o FOV no plano:
+    //   • LATERAL (perfil, decúbito dorsal, VÉRTICE à ESQUERDA, base à direita,
+    //     face p/ CIMA): faixa CC = eixo HORIZONTAL (bordas esq/dir);
+    //     FOV A-P = eixo VERTICAL (bordas sup/inf).
+    //   • FRONTAL/AP (crânio em cima, base embaixo): faixa CC = eixo VERTICAL
+    //     (bordas sup/inf); FOV R-L = eixo HORIZONTAL (bordas esq/dir).
+    // Zonas-alvo didáticas — validação clínica do usuário. As do frontal são
+    // aproximadas (imagem AP ilustrativa) e podem ser recalibradas.
+    var BOX_PRESET = {
+      lateral: {
+        def: { top: 42, bottom: 94, left: 7, right: 66 },
+        target: { top: [30, 54], bottom: [84, 100], left: [2, 18], right: [56, 76] }
+      },
+      frontal: {
+        def: { top: 10, bottom: 74, left: 24, right: 76 },
+        target: { top: [2, 22], bottom: [64, 88], left: [14, 36], right: [64, 86] }
+      }
+    };
+    function isFrontal() { return protocolParams().scout === "frontal"; }
+    function preset() { return BOX_PRESET[isFrontal() ? "frontal" : "lateral"]; }
+    // Extensões (% da imagem) da FAIXA (range CC) e do FOV, conforme a orientação.
+    function rangeSpan() { return isFrontal() ? (boxState.bottom - boxState.top) : (boxState.right - boxState.left); }
+    function fovSpan() { return isFrontal() ? (boxState.right - boxState.left) : (boxState.bottom - boxState.top); }
     var boxState = { top: 42, bottom: 94, left: 7, right: 66 };
-    var TARGET = { top: [30, 54], bottom: [84, 100], left: [2, 18], right: [56, 76] };
     var MIN_GAP = 6; // % mínimo entre linhas opostas
     var lastSlice = 0; // último corte pintado na aquisição (p/ review)
     var lastAcq = null; // parâmetros da última aquisição (p/ relatório)
@@ -2239,18 +2264,23 @@
     var isMoving = false; // MOVER em andamento
 
     // Posição (m) da mesa correspondente ao INÍCIO da faixa planejada.
-    // Mapa imagem→mesa: fração x da imagem (0=esquerda/VÉRTICE, 1=direita/
-    // base). Caudo-cranial: mesa SAI, varredura base→vértice (imagem revela
-    // direita→esquerda; f = 1−k). Crânio-caudal: mesa ENTRA, vértice→base
-    // (f = k). O início da faixa é a extremidade correspondente.
+    // Mapa imagem→mesa ao longo do eixo crânio-caudal. No LATERAL o eixo CC é
+    // horizontal (0=esquerda/VÉRTICE, 1=direita/base); no FRONTAL é vertical
+    // (0=topo/VÉRTICE, 1=base embaixo). Caudo-cranial: mesa SAI, varredura
+    // base→vértice; crânio-caudal: mesa ENTRA, vértice→base. O início da faixa
+    // é a extremidade correspondente à direção.
     function volumeStartZ() {
       if (!topoRef) return null;
       var L = TOPO_LEN_MM / 1000;
+      var frontal = topoRef.scout === "frontal";
+      // borda "vértice" (fração 0) e borda "base" (fração 1) da faixa
+      var vertexEdge = frontal ? boxState.top : boxState.left;
+      var baseEdge = frontal ? boxState.bottom : boxState.right;
       if (topoRef.dir === "craniocaudal") {
-        var k0 = boxState.left / 100;             // até o vértice planejado
+        var k0 = vertexEdge / 100;                // até o vértice planejado
         return topoRef.startZ - L * k0;
       }
-      var k0c = 1 - (boxState.right / 100);       // até a base planejada
+      var k0c = 1 - (baseEdge / 100);             // até a base planejada
       return topoRef.startZ + L * k0c;
     }
 
@@ -2299,6 +2329,7 @@
       if (isNaN(tilt)) tilt = 0;
       tilt = Math.max(-30, Math.min(30, tilt));
       return {
+        scout: p.scout === "frontal" ? "frontal" : "lateral",
         direcao: p.direcao === "craniocaudal" ? "craniocaudal" : "caudocranial",
         modo: p.modo === "sequencial" ? "sequencial" : "helicoidal",
         pitch: pitch,
@@ -2306,6 +2337,29 @@
         rotacaoS: rot,
         tiltDeg: tilt
       };
+    }
+
+    // Arquivo do topograma conforme a orientação do scout no protocolo:
+    // frontal (AP) usa a imagem AP; lateral usa a de perfil. Fallbacks
+    // garantem exibição mesmo em manifestos antigos / asset AP ausente.
+    function scoutSrc(m) {
+      if (!m) return "topograma.png";
+      if (protocolParams().scout === "frontal") {
+        return m.topograma_ap || m.topograma_frontal || m.topograma_h || m.topograma || "topograma.png";
+      }
+      return m.topograma_h || m.topograma || "topograma.png";
+    }
+    // Se o AP não existir (asset ainda não adicionado), cai para o lateral
+    // sem quebrar a aquisição.
+    if (topoImg) {
+      topoImg.addEventListener("error", function () {
+        if (!manifest) return;
+        var lat = bust(manifest.topograma_h || manifest.topograma || "topograma.png");
+        if (topoImg.getAttribute("src") !== lat) {
+          topoImg.src = lat;
+          showMessage("Topograma AP indisponível — exibindo o lateral. Adicione topograma-ap.png para o modo frontal.", "info");
+        }
+      });
     }
 
     // ---- som da máquina (WebAudio sintetizado — offline, sem assets) ----
@@ -2377,6 +2431,44 @@
       counter.textContent = "Corte " + (i + 1) + " / " + manifest.cortes;
     }
 
+    // ---- rótulos de orientação anatômica nas margens (modo anatômico) ----
+    function setOrientLabels(boxId, t, b, l, r) {
+      var el = document.getElementById(boxId); if (!el) return;
+      var q = function (c) { return el.querySelector(".ws-orient__lbl--" + c); };
+      var st = q("t"), sb = q("b"), sl = q("l"), sr = q("r");
+      if (st) st.textContent = t; if (sb) sb.textContent = b;
+      if (sl) sl.textContent = l; if (sr) sr.textContent = r;
+    }
+    // Topograma: LATERAL (perfil) vs FRONTAL/AP. No modo anatômico o operador
+    // "vê o paciente de frente" → no AP a direita do paciente fica à ESQUERDA
+    // da imagem. A seta indica o sentido de deslocamento da mesa no eixo CC.
+    function updateTopoOrient() {
+      var pp = protocolParams();
+      var dirEl = document.getElementById("ws-topo-dir");
+      if (pp.scout === "frontal") {
+        setOrientLabels("ws-topo-orient", "Cabeça", "Pés", "D", "E");
+        if (dirEl) { dirEl.className = "ws-orient__dir is-v"; dirEl.textContent = (pp.direcao === "craniocaudal" ? "↓" : "↑") + " mesa"; }
+      } else {
+        setOrientLabels("ws-topo-orient", "A", "P", "Cabeça", "Pés");
+        if (dirEl) { dirEl.className = "ws-orient__dir is-h"; dirEl.textContent = (pp.direcao === "craniocaudal" ? "→" : "←") + " mesa"; }
+      }
+    }
+    // Volume: rótulos por plano de exibição, convenção radiológica anatômica
+    // (axial visto pelos pés → Direita do paciente à ESQUERDA da imagem).
+    function updateVolOrient() {
+      // Geometria dos reformats (buildReformat): coronal = x(R-L) × Z(CC);
+      // sagital = Z(CC, horizontal) × y(A-P, vertical). Rótulos batem com os
+      // pixels gerados.
+      if (plane === "coronal") setOrientLabels("ws-vol-orient", "Cabeça", "Pés", "D", "E");
+      else if (plane === "sagital") setOrientLabels("ws-vol-orient", "A", "P", "Cabeça", "Pés");
+      else setOrientLabels("ws-vol-orient", "A", "P", "D", "E"); // axial
+    }
+    function showVolOrient(v) {
+      var el = document.getElementById("ws-vol-orient");
+      if (el) el.hidden = !v;
+      if (v) updateVolOrient();
+    }
+
     // ---- caixa: render, validação, readout ----
     function applyBox() {
       if (!topoBox) return;
@@ -2384,20 +2476,40 @@
       topoBox.style.setProperty("--edge-bottom", boxState.bottom + "%");
       topoBox.style.setProperty("--edge-left", boxState.left + "%");
       topoBox.style.setProperty("--edge-right", boxState.right + "%");
+      // Orientação do scout: no frontal a FAIXA passa para o eixo vertical e o
+      // FOV para o horizontal — o CSS troca as cores das bordas e o JS troca
+      // a posição/texto dos rótulos de eixo.
+      var fr = isFrontal();
+      topoBox.classList.toggle("is-frontal", fr);
+      var fovAxis = document.getElementById("ws-topo-axis-fov");
+      if (fovAxis) fovAxis.textContent = fr ? "FOV · R-L" : "FOV · A-P";
       // Tilt do gantry: os planos de corte aparecem angulados na scout
-      // lateral (as linhas de faixa giram pelo ângulo do protocolo).
+      // (as linhas de faixa giram pelo ângulo do protocolo).
       var tilt = protocolParams().tiltDeg || 0;
       topoBox.style.setProperty("--tilt", tilt + "deg");
       topoBox.classList.toggle("has-tilt", Math.abs(tilt) > 0.5);
+      updateTopoOrient();
     }
     function inZone(v, z) { return v >= z[0] && v <= z[1]; }
     function problems() {
-      var p = [];
-      if (boxState.right - boxState.left < MIN_GAP) p.push("A faixa está invertida ou muito estreita (vértice à esquerda, base à direita).");
-      else if (!inZone(boxState.left, TARGET.left)) p.push("Leve o limite esquerdo até o vértice.");
-      else if (!inZone(boxState.right, TARGET.right)) p.push("Leve o limite direito até a base do crânio.");
-      if (boxState.bottom - boxState.top < MIN_GAP) p.push("O FOV está invertido ou muito estreito.");
-      else if (!inZone(boxState.top, TARGET.top) || !inZone(boxState.bottom, TARGET.bottom)) p.push("Ajuste o FOV para cobrir o crânio (anterior/posterior).");
+      var p = [], T = preset().target;
+      if (isFrontal()) {
+        // FAIXA (crânio-caudal) = eixo vertical (sup/inf)
+        if (boxState.bottom - boxState.top < MIN_GAP) p.push("A faixa está invertida ou muito estreita (cabeça em cima, base embaixo).");
+        else if (!inZone(boxState.top, T.top)) p.push("Leve o limite superior até o vértice do crânio.");
+        else if (!inZone(boxState.bottom, T.bottom)) p.push("Leve o limite inferior até a base do crânio.");
+        // FOV (direita-esquerda) = eixo horizontal (esq/dir)
+        if (boxState.right - boxState.left < MIN_GAP) p.push("O FOV está invertido ou muito estreito.");
+        else if (!inZone(boxState.left, T.left) || !inZone(boxState.right, T.right)) p.push("Ajuste o FOV para cobrir o crânio (direita/esquerda).");
+      } else {
+        // FAIXA (crânio-caudal) = eixo horizontal (esq/dir)
+        if (boxState.right - boxState.left < MIN_GAP) p.push("A faixa está invertida ou muito estreita (vértice à esquerda, base à direita).");
+        else if (!inZone(boxState.left, T.left)) p.push("Leve o limite esquerdo até o vértice.");
+        else if (!inZone(boxState.right, T.right)) p.push("Leve o limite direito até a base do crânio.");
+        // FOV (ântero-posterior) = eixo vertical (sup/inf)
+        if (boxState.bottom - boxState.top < MIN_GAP) p.push("O FOV está invertido ou muito estreito.");
+        else if (!inZone(boxState.top, T.top) || !inZone(boxState.bottom, T.bottom)) p.push("Ajuste o FOV para cobrir o crânio (anterior/posterior).");
+      }
       return p;
     }
     function renderReadout() {
@@ -2417,11 +2529,13 @@
         }
       }
       if (!readout) return;
-      var cc = Math.max(0, boxState.right - boxState.left).toFixed(0);
-      var ap = Math.max(0, boxState.bottom - boxState.top).toFixed(0);
+      var cc = Math.max(0, rangeSpan()).toFixed(0);
+      var ap = Math.max(0, fovSpan()).toFixed(0);
       var pp = protocolParams();
+      var scoutTxt = pp.scout === "frontal" ? "frontal/AP" : "lateral";
+      var fovLbl = pp.scout === "frontal" ? "FOV R-L" : "FOV A-P";
       var dirTxt = pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)";
-      var msg = "Faixa CC: " + cc + "% · FOV A-P: " + ap + "% · Direção: " + dirTxt + ". ";
+      var msg = "Scout " + scoutTxt + " · Faixa CC: " + cc + "% · " + fovLbl + ": " + ap + "% · Direção: " + dirTxt + ". ";
       var okMsg;
       if (!(tableDriveApi && topoRef)) okMsg = "Posição válida — Iniciar libera a aquisição.";
       else if (isMoving) okMsg = "Movendo a mesa para o início da faixa…";
@@ -2484,6 +2598,7 @@
       if (tableDriveApi && tableDriveApi.setGantryTilt) tableDriveApi.setGantryTilt(0);
       stopAnimations();
       img.hidden = true; ctrl.hidden = true;
+      showVolOrient(false);
       if (topo) topo.hidden = true;
       if (topoBox) topoBox.hidden = true;
       if (readout) readout.hidden = true;
@@ -2502,17 +2617,27 @@
     }
 
     // Topograma com física real: tubo ESTACIONÁRIO, a MESA translada o
-    // paciente pelo gantry e a imagem se revela linha a linha em sincronia
-    // com a posição real da mesa 3D. Orientação: VÉRTICE à esquerda, base
-    // à direita. Direção do protocolo:
-    //   caudo-cranial → mesa SAI (revela da base, à DIREITA, p/ o vértice)
-    //   crânio-caudal → mesa ENTRA (revela do vértice, à ESQUERDA, p/ a base)
+    // paciente pelo gantry e a imagem se revela em sincronia com a posição
+    // real da mesa 3D, ao longo do eixo crânio-caudal.
+    //   LATERAL (eixo CC horizontal, VÉRTICE à esquerda):
+    //     crânio-caudal → mesa ENTRA (revela do vértice/esquerda p/ a base/direita)
+    //     caudo-cranial → mesa SAI   (revela da base/direita p/ o vértice/esquerda)
+    //   FRONTAL/AP (eixo CC vertical, VÉRTICE em cima):
+    //     crânio-caudal → mesa ENTRA (revela do vértice/topo p/ a base/baixo)
+    //     caudo-cranial → mesa SAI   (revela da base/baixo p/ o vértice/topo)
     function setTopoClip(k) {
       var pct = ((1 - k) * 100).toFixed(2);
       var pp = protocolParams();
-      topoImg.style.clipPath = (pp.direcao === "craniocaudal")
-        ? "inset(0 " + pct + "% 0 0)"
-        : "inset(0 0 0 " + pct + "%)";
+      var cc = pp.direcao === "craniocaudal";
+      if (pp.scout === "frontal") {
+        topoImg.style.clipPath = cc
+          ? "inset(0 0 " + pct + "% 0)"   // revela de cima (vértice) p/ baixo
+          : "inset(" + pct + "% 0 0 0)";  // revela de baixo (base) p/ cima
+      } else {
+        topoImg.style.clipPath = cc
+          ? "inset(0 " + pct + "% 0 0)"
+          : "inset(0 0 0 " + pct + "%)";
+      }
     }
     function toTopoAcq() {
       phase = "topoAcq";
@@ -2520,6 +2645,7 @@
       placeholder.hidden = true;
       img.hidden = true; ctrl.hidden = true;
       if (topo) topo.hidden = false;
+      updateTopoOrient();                    // rótulos anatômicos já na varredura
       if (topoBox) topoBox.hidden = true;   // linhas só após completar
       if (readout) readout.hidden = true;
       startBtn.disabled = true; startBtn.textContent = "Adquirindo topograma…";
@@ -2547,7 +2673,7 @@
           showMessage(res.motivo, "warning");
           return;
         }
-        topoRef = { startZ: res.startZ, dir: pp.direcao, isoOff: null };
+        topoRef = { startZ: res.startZ, dir: pp.direcao, scout: pp.scout, isoOff: null };
         if (tableDriveApi.getIsoOffsetCm) {
           var off = tableDriveApi.getIsoOffsetCm();
           topoRef.isoOff = off;
@@ -2578,7 +2704,8 @@
       if (topoBox) topoBox.hidden = false;
       if (readout) readout.hidden = false;
       if (!keepBox) {
-        boxState = { top: DEFAULT_BOX.top, bottom: DEFAULT_BOX.bottom, left: DEFAULT_BOX.left, right: DEFAULT_BOX.right };
+        var d = preset().def;
+        boxState = { top: d.top, bottom: d.bottom, left: d.left, right: d.right };
       }
       startBtn.disabled = false; startBtn.textContent = "Iniciar";
       atStart = false; isMoving = false;
@@ -2616,8 +2743,10 @@
       if (pac) rows.push("<strong>Paciente:</strong> " + pac.nome + " · " + (pac.prontuario ? "Pront. " + pac.prontuario : "s/ prontuário") + (pac.regiao ? " · " + pac.regiao : ""));
       var modoTxt = pp.modo === "sequencial" ? "axial sequencial" : "helicoidal";
       var tiltTxt = (pp.tiltDeg ? (", tilt " + pp.tiltDeg.toFixed(0) + "°") : "");
-      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · " + modoTxt + tiltTxt + " · direção " + (pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)"));
-      rows.push("<strong>Faixa varrida:</strong> " + Math.round(scanLen) + " mm · <strong>FOV A-P:</strong> " + Math.max(0, boxState.bottom - boxState.top).toFixed(0) + "% da imagem");
+      var scoutTxt = pp.scout === "frontal" ? "topograma frontal/AP" : "topograma lateral";
+      var fovLbl = pp.scout === "frontal" ? "FOV R-L" : "FOV A-P";
+      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · " + scoutTxt + " · " + modoTxt + tiltTxt + " · direção " + (pp.direcao === "craniocaudal" ? "crânio-caudal (mesa entra)" : "caudo-cranial (mesa sai)"));
+      rows.push("<strong>Faixa varrida:</strong> " + Math.round(scanLen) + " mm · <strong>" + fovLbl + ":</strong> " + Math.max(0, fovSpan()).toFixed(0) + "% da imagem");
       if (pp.modo === "sequencial") {
         rows.push("<strong>Mesa:</strong> passo a passo (step-and-shoot) · colimação " + pp.colim.toFixed(1) + " mm · rotação " + pp.rotacaoS.toFixed(1) + " s");
       } else {
@@ -2716,6 +2845,7 @@
       if (topo) topo.hidden = true;
       if (readout) readout.hidden = true;
       img.hidden = false; ctrl.hidden = false;
+      showVolOrient(true);
       slider.disabled = true;
       startBtn.disabled = true; startBtn.textContent = "Adquirindo volume…";
       if (moveBtn) moveBtn.hidden = true;
@@ -2725,7 +2855,7 @@
       var total = manifest.cortes;
       var pp = protocolParams();
       // Comprimento da varredura = faixa CC planejada no topograma (mm)
-      var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
+      var scanLen = Math.max(20, (rangeSpan() / 100) * TOPO_LEN_MM);
       var speed = Math.max(10, Math.min(120, (pp.pitch * pp.colim) / pp.rotacaoS)); // mm/s
       lastAcq = { scanLen: scanLen, speed: speed, pp: pp };
       function paintProg(k) {
@@ -2976,6 +3106,7 @@
       slider.min = 0; slider.max = maxI;
       var mid = Math.round(maxI / 2);
       render(mid);
+      updateVolOrient();
     }
 
     // Passo de RECONSTRUÇÃO entre a aquisição e a revisão. Monta o volume
@@ -3015,6 +3146,7 @@
       }
       slider.min = 0; slider.max = manifest.cortes - 1;
       show(lastSlice);
+      showVolOrient(true);
       showMessage("Aquisição concluída (" + manifest.cortes + " cortes)" +
         (vol ? " — reformatações coronal/sagital disponíveis." : ".") + " Navegue e finalize com Stop.", "success");
     }
@@ -3053,7 +3185,7 @@
       var pac = (examSessionApi && examSessionApi.get) ? examSessionApi.get() : null;
       var prot = examProtocol ? examProtocol.data : null;
       var pp = protocolParams();
-      var scanLen = Math.max(20, ((boxState.right - boxState.left) / 100) * TOPO_LEN_MM);
+      var scanLen = Math.max(20, (rangeSpan() / 100) * TOPO_LEN_MM);
       var dose = NaN;
       if (prot && prot.dose) { var m = String(prot.dose).replace(/,/g, ".").match(/\d+(\.\d+)?/); if (m) dose = parseFloat(m[0]); }
       var dlp = (dose > 0) ? dose * (scanLen / 10) : NaN;
@@ -3062,8 +3194,10 @@
       var modoTxt = pp.modo === "sequencial" ? "axial sequencial" : "helicoidal";
       var rows = [];
       rows.push("<strong>Paciente:</strong> " + (pac ? pac.nome + (pac.prontuario ? " · Pront. " + pac.prontuario : "") : "—"));
-      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · " + modoTxt + (pp.tiltDeg ? (", tilt " + pp.tiltDeg.toFixed(0) + "°") : "") + " · " + (pp.direcao === "craniocaudal" ? "crânio-caudal" : "caudo-cranial"));
-      rows.push("<strong>Faixa:</strong> " + Math.round(scanLen) + " mm · <strong>FOV A-P:</strong> " + Math.max(0, boxState.bottom - boxState.top).toFixed(0) + "%");
+      var scoutTxt = pp.scout === "frontal" ? "frontal/AP" : "lateral";
+      var fovLbl = pp.scout === "frontal" ? "FOV R-L" : "FOV A-P";
+      rows.push("<strong>Protocolo:</strong> " + (prot ? prot.nome : "—") + " · scout " + scoutTxt + " · " + modoTxt + (pp.tiltDeg ? (", tilt " + pp.tiltDeg.toFixed(0) + "°") : "") + " · " + (pp.direcao === "craniocaudal" ? "crânio-caudal" : "caudo-cranial"));
+      rows.push("<strong>Faixa:</strong> " + Math.round(scanLen) + " mm · <strong>" + fovLbl + ":</strong> " + Math.max(0, fovSpan()).toFixed(0) + "%");
       if (!isNaN(dlp)) rows.push("<strong>Dose estimada:</strong> DLP ≈ " + dlp.toFixed(0) + " mGy·cm");
       rows.push("<br><strong>Checklist pré-aquisição</strong>");
       rows.push(chk(!!pac, "Paciente cadastrado"));
@@ -3098,7 +3232,7 @@
         return;
       }
       if (manifest) {
-        topoImg.src = bust(manifest.topograma_h || manifest.topograma || "topograma.png");
+        topoImg.src = bust(scoutSrc(manifest));
         toTopoAcq();
         return;
       }
@@ -3115,7 +3249,7 @@
           caption.textContent = "Topograma ilustrativo (paciente distinto do volume) para planejar a faixa. Volume axial real de TC de crânio (" +
             m.fonte.nome + "). " + m.fonte.licenca + " Apenas visualização — sem interpretação diagnóstica.";
         }
-        topoImg.src = bust(m.topograma_h || m.topograma || "topograma.png");
+        topoImg.src = bust(scoutSrc(m));
         toTopoAcq();
       }).catch(function (err) {
         startBtn.disabled = false;
