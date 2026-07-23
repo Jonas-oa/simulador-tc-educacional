@@ -2206,6 +2206,24 @@
     var REV = "20260713a"; // bump ao trocar assets — quebra cache do GitHub Pages
     function bust(path) { return BASE + path + (path.indexOf("?") < 0 ? "?v=" + REV : "&v=" + REV); }
     var manifest = null;
+
+    // ---- Origem das imagens do exame (fantoma SIMULADO ou arquivos) --------
+    // Contrato mínimo trocável por DICOM no futuro: manifest / axial(i) /
+    // scout(kind). Hoje: fantoma procedural (js/phantoms.js). A região sai do
+    // protocolo selecionado (Tórax → tórax; demais → crânio, por ora).
+    var volSource = { kind: "files", region: null };
+    function phantomRegionFor(prot) {
+      if (!prot) return "cranio";
+      var reg = prot.regiao || "";
+      if (reg === "Tórax") return "torax";
+      return "cranio"; // crânio e demais regiões usam o fantoma de crânio (placeholder)
+    }
+    function resolveSource() {
+      var prot = examProtocol && examProtocol.data;
+      var region = phantomRegionFor(prot);
+      if (window.CTPhantom && window.CTPhantom.has(region)) return { kind: "phantom", region: region };
+      return { kind: "files", region: null };
+    }
     var loaded = false;
     // idle → topoAcq (varredura) → plan (linhas) → volAcq (mesa+cortes) → review
     var phase = "idle";
@@ -2342,18 +2360,20 @@
     // Arquivo do topograma conforme a orientação do scout no protocolo:
     // frontal (AP) usa a imagem AP; lateral usa a de perfil. Fallbacks
     // garantem exibição mesmo em manifestos antigos / asset AP ausente.
+    // Devolve o SRC completo do topograma (dataURL do fantoma, ou arquivo já
+    // com cache-buster). Orientação frontal/AP vs lateral conforme o protocolo.
     function scoutSrc(m) {
-      if (!m) return "topograma.png";
-      if (protocolParams().scout === "frontal") {
-        return m.topograma_ap || m.topograma_frontal || m.topograma_h || m.topograma || "topograma.png";
-      }
-      return m.topograma_h || m.topograma || "topograma.png";
+      var frontal = protocolParams().scout === "frontal";
+      if (volSource.kind === "phantom") return window.CTPhantom.scout(volSource.region, frontal ? "frontal" : "lateral");
+      if (!m) return bust("topograma.png");
+      if (frontal) return bust(m.topograma_ap || m.topograma_frontal || m.topograma_h || m.topograma || "topograma.png");
+      return bust(m.topograma_h || m.topograma || "topograma.png");
     }
     // Se o AP não existir (asset ainda não adicionado), cai para o lateral
     // sem quebrar a aquisição.
     if (topoImg) {
       topoImg.addEventListener("error", function () {
-        if (!manifest) return;
+        if (!manifest || volSource.kind === "phantom") return; // fantoma não tem 404
         var lat = bust(manifest.topograma_h || manifest.topograma || "topograma.png");
         if (topoImg.getAttribute("src") !== lat) {
           topoImg.src = lat;
@@ -2420,7 +2440,10 @@
     }
 
     function pad3(n) { n = String(n); while (n.length < 3) n = "0" + n; return n; }
-    function srcFor(i) { return bust("axial_" + pad3(i) + ".png"); }
+    function srcFor(i) {
+      if (volSource.kind === "phantom") return window.CTPhantom.axial(volSource.region, i);
+      return bust("axial_" + pad3(i) + ".png");
+    }
     function show(i) {
       if (!manifest) return;
       i = i | 0;
@@ -3231,8 +3254,22 @@
         showMessage("Posicione o paciente na mesa (botão Decúbito, na sala 3D) antes de iniciar a aquisição.", "warning");
         return;
       }
+      // Resolve a origem das imagens para ESTE exame (região do protocolo).
+      volSource = resolveSource();
+      if (volSource.kind === "phantom") {
+        manifest = window.CTPhantom.manifest(volSource.region);
+        slider.min = 0; slider.max = manifest.cortes - 1;
+        if (caption) {
+          caption.textContent = "Imagem SIMULADA (fantoma didático) — " + manifest.nome +
+            ". Topograma e volume gerados por modelo geométrico; sem interpretação diagnóstica. " +
+            "Serão substituídos por DICOM em atualização futura.";
+        }
+        topoImg.src = scoutSrc(manifest);
+        toTopoAcq();
+        return;
+      }
       if (manifest) {
-        topoImg.src = bust(scoutSrc(manifest));
+        topoImg.src = scoutSrc(manifest);
         toTopoAcq();
         return;
       }
@@ -3249,7 +3286,7 @@
           caption.textContent = "Topograma ilustrativo (paciente distinto do volume) para planejar a faixa. Volume axial real de TC de crânio (" +
             m.fonte.nome + "). " + m.fonte.licenca + " Apenas visualização — sem interpretação diagnóstica.";
         }
-        topoImg.src = bust(scoutSrc(m));
+        topoImg.src = scoutSrc(m);
         toTopoAcq();
       }).catch(function (err) {
         startBtn.disabled = false;
