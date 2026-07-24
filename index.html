@@ -167,15 +167,23 @@
           <header class="acq-quad__head">Topograma<span class="acq-quad__tag">scout · lateral</span></header>
           <div class="acq-quad__body" id="acq-topo-body">
             <div class="ws-topo" id="ws-topo" hidden>
-              <img id="ws-topo-img" class="ws-topo__img" alt="Topograma lateral de crânio">
+              <img id="ws-topo-img" class="ws-topo__img" alt="Topograma de crânio">
               <div class="ws-topo__box" id="ws-topo-box" aria-hidden="true">
                 <div class="ws-topo__rect" id="ws-topo-rect"></div>
-                <span class="ws-topo__axis ws-topo__axis--range">Faixa · CC</span>
-                <span class="ws-topo__axis ws-topo__axis--fov">FOV · A-P</span>
+                <span class="ws-topo__axis ws-topo__axis--range" id="ws-topo-axis-range">Faixa · CC</span>
+                <span class="ws-topo__axis ws-topo__axis--fov" id="ws-topo-axis-fov">FOV · A-P</span>
                 <div class="ws-topo__line ws-topo__line--h ws-topo__line--fov" id="ws-topo-top" data-edge="top" title="FOV — limite anterior"></div>
                 <div class="ws-topo__line ws-topo__line--h ws-topo__line--fov" id="ws-topo-bottom" data-edge="bottom" title="FOV — limite posterior"></div>
                 <div class="ws-topo__line ws-topo__line--v ws-topo__line--range" id="ws-topo-left" data-edge="left" title="Limite da faixa — vértice"></div>
                 <div class="ws-topo__line ws-topo__line--v ws-topo__line--range" id="ws-topo-right" data-edge="right" title="Limite da faixa — base do crânio"></div>
+              </div>
+              <!-- Rótulos anatômicos nas margens (modo anatômico) -->
+              <div class="ws-orient" id="ws-topo-orient" aria-hidden="true">
+                <span class="ws-orient__lbl ws-orient__lbl--t"></span>
+                <span class="ws-orient__lbl ws-orient__lbl--b"></span>
+                <span class="ws-orient__lbl ws-orient__lbl--l"></span>
+                <span class="ws-orient__lbl ws-orient__lbl--r"></span>
+                <span class="ws-orient__dir" id="ws-topo-dir"></span>
               </div>
             </div>
             <span class="acq-quad__ph" id="acq-topo-ph">Topograma não adquirido</span>
@@ -194,6 +202,13 @@
             <div class="ws-viewer ws-viewer--full" id="ws-slice-viewer" aria-label="Área de visualização de imagens">
               <img id="ws-slice-img" class="ws-viewer__img" alt="Corte axial de TC de crânio" hidden>
               <span class="ws-viewer__placeholder" id="ws-viewer-placeholder">Exame não iniciado</span>
+              <!-- Rótulos anatômicos nas margens (modo anatômico) -->
+              <div class="ws-orient" id="ws-vol-orient" aria-hidden="true" hidden>
+                <span class="ws-orient__lbl ws-orient__lbl--t"></span>
+                <span class="ws-orient__lbl ws-orient__lbl--b"></span>
+                <span class="ws-orient__lbl ws-orient__lbl--l"></span>
+                <span class="ws-orient__lbl ws-orient__lbl--r"></span>
+              </div>
 
               <div class="ws-report" id="ws-report" hidden>
                 <h3 class="ws-report__title">Relatório do exame — didático</h3>
@@ -306,6 +321,10 @@
                 <label class="ws-field"><span class="ws-field__label">kV</span><input class="ws-input" id="ws-param-kv" type="text" placeholder="—" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">mAs</span><input class="ws-input" id="ws-param-mas" type="text" placeholder="—" disabled></label>
                 <label class="ws-field"><span class="ws-field__label">Pitch</span><input class="ws-input" id="ws-param-pitch" type="text" placeholder="—" disabled></label>
+                <label class="ws-field"><span class="ws-field__label">Topograma (scout)</span><select class="ws-input" id="ws-param-scout" disabled>
+                  <option value="lateral">Lateral (perfil — crânio/coluna)</option>
+                  <option value="frontal">Frontal / AP (maioria dos exames)</option>
+                </select></label>
                 <label class="ws-field"><span class="ws-field__label">Direção da varredura</span><select class="ws-input" id="ws-param-direcao" disabled>
                   <option value="caudocranial">Caudo-cranial (mesa sai do gantry)</option>
                   <option value="craniocaudal">Crânio-caudal (mesa entra no gantry)</option>
@@ -404,6 +423,7 @@
   </script>
 
   <script src="js/vendor/three.min.js"></script>
+  <script src="js/phantoms.js?v=20260721e"></script>
   <script src="script.js?v=20260721e"></script>
   <script src="js/mobile-tabs.js?v=20260721e"></script>
 </body>

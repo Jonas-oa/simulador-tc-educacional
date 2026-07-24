@@ -1048,6 +1048,45 @@ body.is-mobile.mob-aq .dash-pane__body { overflow: visible; }
 #ws-topo-right { left: var(--edge-right); }
 .ws-topo__box.is-invalid .ws-topo__rect { outline-color: var(--accent-red); background: rgba(255, 80, 80, 0.1); }
 
+/* Scout FRONTAL/AP: a FAIXA (range CC) passa p/ o eixo vertical (bordas
+   sup/inf = cyan) e o FOV p/ o horizontal (bordas esq/dir = âmbar). Troca as
+   cores das bordas e reposiciona os rótulos de eixo. */
+.ws-topo__box.is-frontal .ws-topo__line--h::before { background: var(--accent-cyan); }
+.ws-topo__box.is-frontal .ws-topo__line--v::before { background: var(--accent-amber); }
+.ws-topo__box.is-frontal .ws-topo__line--h { color: var(--accent-cyan); }
+.ws-topo__box.is-frontal .ws-topo__line--v { color: var(--accent-amber); }
+.ws-topo__box.is-frontal .ws-topo__axis--range {
+  left: var(--edge-left);
+  top: calc((var(--edge-top) + var(--edge-bottom)) / 2);
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+.ws-topo__box.is-frontal .ws-topo__axis--fov {
+  top: var(--edge-top);
+  left: calc((var(--edge-left) + var(--edge-right)) / 2);
+  transform: translate(-50%, -50%);
+}
+
+/* Rótulos de orientação anatômica nas margens do quadro (modo anatômico) —
+   topograma e volume. Ficam abaixo dos overlays de controle (z-index 4). */
+.ws-orient { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.ws-orient[hidden] { display: none; }
+.ws-orient__lbl {
+  position: absolute; font-size: 11px; font-weight: 800; line-height: 1;
+  letter-spacing: 0.06em; color: rgba(226, 240, 248, 0.92);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.9);
+}
+.ws-orient__lbl--t { top: 3px; left: 50%; transform: translateX(-50%); }
+.ws-orient__lbl--b { bottom: 3px; left: 50%; transform: translateX(-50%); }
+.ws-orient__lbl--l { left: 4px; top: 50%; transform: translateY(-50%); }
+.ws-orient__lbl--r { right: 4px; top: 50%; transform: translateY(-50%); }
+.ws-orient__dir {
+  position: absolute; font-size: 10px; font-weight: 700; white-space: nowrap;
+  color: var(--accent-cyan); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+  background: rgba(6, 14, 22, 0.6); padding: 1px 5px; border-radius: 3px;
+}
+.ws-orient__dir.is-h { bottom: 15px; left: 50%; transform: translateX(-50%); }
+.ws-orient__dir.is-v { right: 14px; top: 50%; transform: translateY(-50%); }
+
 .ws-topo-readout {
   margin: 6px 0 0; font-size: 0.78rem; line-height: 1.35;
   color: var(--text-secondary, #9aa6b2);
